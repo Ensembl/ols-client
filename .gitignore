@@ -8,6 +8,8 @@
 .idea/**/tasks.xml
 .idea/**/dictionaries
 .idea/**/shelf
+.idea/*.xml
+.idea/*.iml
 
 # Sensitive or high-churn files
 .idea/**/dataSources/
