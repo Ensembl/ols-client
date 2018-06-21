@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from collections import namedtuple, OrderedDict
+
 from coreapi.document import Object
-import warnings
+
 
 class BaseDto(object):
+    """
+    Base Transfer object, mainly assign dynamically received dict keys to object attributes
+    """
 
     def __init__(self, **kwargs) -> None:
         super().__init__()
@@ -18,7 +22,7 @@ class OntoAnnotation(BaseDto):
     rights = None
     format_version = None
     comment = None
-    default_namespac = None
+    default_namespace = None
 
 
 class Config(BaseDto):
@@ -81,7 +85,7 @@ class OboCitation(BaseDto):
 class TermAnnotation(BaseDto):
     database_cross_reference = None
     has_obo_namespace = None
-    i = None
+    id = None
 
 
 class TermsLink(BaseDto):
@@ -122,6 +126,8 @@ class Term(BaseDto):
 Subset = namedtuple("Subset", ["terms"])
 
 Error = namedtuple("Error", ["error", "message", "status", "path", "timestamp"])
+
+
 # TODO add all required DTO objects to trasnfer
 
 
@@ -151,8 +157,8 @@ def load_data(cls, data):
 def load_ontology_config(data) -> Config:
     """
     Load Config object
-:param data: an OrderedDict received
-:return: Config namedtuple
+    :param data: an OrderedDict received
+    :return: Config namedtuple
     """
     onto_annotations = OntoAnnotation(**data.pop("annotations", None))
     return Config(**data, annotations=onto_annotations)
@@ -161,8 +167,8 @@ def load_ontology_config(data) -> Config:
 def load_ontology(data) -> Ontology:
     """
     Load an Ontology object
-:param data: an Document received
-:return: Ontology namedtuple
+    :param data: an Document received
+    :return: Ontology namedtuple
     """
     converted = _convert_keys(data)
     config = converted.pop("config", None)
@@ -171,13 +177,25 @@ def load_ontology(data) -> Ontology:
     return ontology
 
 
-def load_ontologies_list(data) -> [Ontology] or Error:
+def load_ontologies(ontologies) -> [Ontology] or Error:
     """
     From received Document with list of ontologies Document return a list of Ontology objects
-    :param data: Document
+    :param ontologies: Document
     :return: [Ontology] or Error
     """
-    if 'ontologies' not in data:
-        return Error("No Ontologies", "No ontology provided", 500, None, None)
+    if 'ontologies' not in ontologies:
+        return Error("No Ontologies", "No ontology provided", 400, None, None)
     else:
-        return [load_ontology(onto) for onto in data['ontologies']]
+        return [load_ontology(onto) for onto in ontologies['ontologies']]
+
+
+def load_term(term_doc) -> Term or Error:
+    return load_data(Term, term_doc)
+
+
+def load_terms(terms) -> [Term] or Error:
+    if 'terms' not in terms:
+        return Error("No Term", "No term provided", 400, None, None)
+    else:
+        return [load_term(term) for term in terms['terms']]
+    pass
