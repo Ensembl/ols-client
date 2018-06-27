@@ -6,35 +6,34 @@ import coreapi.exceptions
 
 import ebi.ols.api.helpers as helpers
 import ebi.ols.api.utils as utils
-from ebi.ols.api.client import OLSClient, TermClient
+import ols.api.utils
+from ebi.ols.api.client import OlsRootClient
 
 
 class OntologyTestSuite(unittest.TestCase):
     """Basic test cases."""
-    base_url = "https://wwwdev.ebi.ac.uk/ols/api"
-
     def setUp(self):
         super().setUp()
-        self.client = OLSClient(self.base_url)
+        self.client = OlsRootClient()
 
     def test_ontologies_list(self):
         # standard first page
-        document = self.client.ontologies()
-        self.assertTrue('page' in document)
-        self.assertTrue('next' in document)
+        ontologies = self.client.ontologies.list(size=50)
         # print(document)
-        pages = document.data['page']
-        self.assertEqual(pages['size'], 20)
-        self.assertEqual(pages['number'], 0)
-        total_pages = pages['totalPages']
+        self.assertEqual(ontologies.size, 50)
+        total_pages = ontologies.total_pages
+        print('total pages', total_pages)
         current = 1
-        while utils.has_next(document):
+        while ontologies.has_next:
             # document = self.client.ontologies(page=current)
-            document = self.client.next(document)
-            ontology_doc = document.data['ontologies']
-            self._checkOntologies(helpers.load_ontologies(document.data), ontology_doc)
+            ontologies = ontologies.next()
             current = current + 1
         self.assertEqual(total_pages, current)
+
+    def test_ontology_client(self):
+        onto = self.client.ontologies.details('fypo')
+        ontology = ols.api.utils.load_ontology(onto)
+        self._checkTerms(ontology, document)
 
     def _checkOntology(self, ontology, document):
         self.assertTrue('ontologyId' in document)
@@ -61,7 +60,7 @@ class OntologyTestSuite(unittest.TestCase):
 
     def test_load_ontology(self):
         document = self.client.ontology('go')
-        ontology = helpers.load_ontology(document)
+        ontology = ols.api.utils.load_ontology(document)
         self._checkOntology(ontology, document)
 
     def test_failed_ontology(self):
@@ -91,7 +90,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(page['size'], 20)
         self.assertEqual(page['number'], 0)
         doc_terms = document.data['terms']
-        terms = helpers.load_terms(document)
+        terms = ols.api.utils.load_terms(document)
         count = self._checkTerms(terms, doc_terms)
         self.assertEqual(count, page['size'])
 
@@ -102,19 +101,19 @@ class OntologyTestSuite(unittest.TestCase):
         """
         filters = {'short_form': 'EFO_0000405'}
         document = self.client.terms('efo', filters=filters)
-        terms = helpers.load_terms(document)
+        terms = ols.api.utils.load_terms(document)
         for term in terms:
             self.assertEqual(term.short_form, 'EFO_0000405')
 
         filters = {'obo_id': 'EFO:0000405'}
         document = self.client.terms('efo', filters=filters)
-        terms = helpers.load_terms(document)
+        terms = ols.api.utils.load_terms(document)
         for term in terms:
             self.assertEqual(term.obo_id, 'EFO:0000405')
 
         filters = {'iri': 'http://www.ebi.ac.uk/efo/EFO_1000838'}
         document = self.client.terms('efo', filters=filters)
-        terms = helpers.load_terms(document)
+        terms = ols.api.utils.load_terms(document)
         for term in terms:
             self.assertEqual(term.short_form, 'EFO_1000838')
             self.assertEqual(term.obo_id, 'EFO:1000838')
@@ -130,20 +129,20 @@ class OntologyTestSuite(unittest.TestCase):
             document = self.client.terms(None)
             page = document.data['page']
             doc_terms = document.data['terms']
-            terms = helpers.load_terms(document)
+            terms = ols.api.utils.load_terms(document)
             self.assertGreater(len(terms), 0)
             count = self._checkTerms(terms, doc_terms)
             self.assertEquals(count, page['size'])
 
     def test_ontology_term(self):
-        terms = helpers.load_terms(self.client.terms('lbo'))
+        terms = ols.api.utils.load_terms(self.client.terms('lbo'))
         for term in terms:
             direct_term = self.client.term('lbo', term.iri)
             # direct_term = helpers.load_term(direct_term)
             self._checkTerm(term, direct_term)
-            term_client = TermClient(self.base_url, term)
+            term_client = TermsClient(self.base_url, term)
             ancestors_doc = term_client.ancestors()
-            ancestors = helpers.load_terms(ancestors_doc)
+            ancestors = ols.api.utils.load_terms(ancestors_doc)
             self._checkTerms(ancestors, ancestors_doc.data['terms'])
 
     def test_search(self):

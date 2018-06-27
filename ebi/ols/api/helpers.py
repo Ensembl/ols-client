@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from collections import namedtuple, OrderedDict
-
-from coreapi.document import Object
+from collections import namedtuple
 
 
 class BaseDto(object):
     """
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
     """
+    api_client = None
 
     def __init__(self, **kwargs) -> None:
         super().__init__()
@@ -128,74 +127,3 @@ Subset = namedtuple("Subset", ["terms"])
 Error = namedtuple("Error", ["error", "message", "status", "path", "timestamp"])
 
 
-# TODO add all required DTO objects to trasnfer
-
-
-def _convert_keys(data) -> OrderedDict:
-    """
-    Convert Json like keyx into Python-like keys
-    :param data: a OrderedDict or None
-    :return: OrderedDict
-    """
-    if data is None:
-        return OrderedDict({})
-    return OrderedDict(
-        {k.replace("-", "_"): _convert_keys(v) if isinstance(v, dict) or isinstance(v, Object) else v
-         for k, v in data.items()})
-
-
-def load_data(cls, data):
-    """
-    Load data into related class (assuming it's one of the namedtuple for ontologies, and no inner tuple to load)
-    :param cls: the destination namedtuple
-    :param data: the initial OrderedDIct
-    :return: namedtuple
-    """
-    return cls(**data)
-
-
-def load_ontology_config(data) -> Config:
-    """
-    Load Config object
-    :param data: an OrderedDict received
-    :return: Config namedtuple
-    """
-    onto_annotations = OntoAnnotation(**data.pop("annotations", None))
-    return Config(**data, annotations=onto_annotations)
-
-
-def load_ontology(data) -> Ontology:
-    """
-    Load an Ontology object
-    :param data: an Document received
-    :return: Ontology namedtuple
-    """
-    converted = _convert_keys(data)
-    config = converted.pop("config", None)
-    onto_config = load_ontology_config(config)
-    ontology = Ontology(**converted, config=onto_config)
-    return ontology
-
-
-def load_ontologies(ontologies) -> [Ontology] or Error:
-    """
-    From received Document with list of ontologies Document return a list of Ontology objects
-    :param ontologies: Document
-    :return: [Ontology] or Error
-    """
-    if 'ontologies' not in ontologies:
-        return Error("No Ontologies", "No ontology provided", 400, None, None)
-    else:
-        return [load_ontology(onto) for onto in ontologies['ontologies']]
-
-
-def load_term(term_doc) -> Term or Error:
-    return load_data(Term, term_doc)
-
-
-def load_terms(terms) -> [Term] or Error:
-    if 'terms' not in terms:
-        return Error("No Term", "No term provided", 400, None, None)
-    else:
-        return [load_term(term) for term in terms['terms']]
-    pass

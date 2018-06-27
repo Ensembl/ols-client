@@ -5,11 +5,15 @@ import os
 
 from setuptools import setup, find_packages
 
-with open('README.md') as f:
+with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
     readme = f.read()
 
-with open('LICENSE') as f:
-    license = f.read()
+with open(os.path.join(os.path.dirname(__file__), 'LICENSE')) as f:
+    license_ct = f.read()
+
+with open(os.path.join(os.path.dirname(__file__), 'VERSION')) as f:
+    version = f.read()
+
 
 def import_requirements():
     with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as f:
@@ -18,15 +22,16 @@ def import_requirements():
         content = [x.strip() for x in content]
         return content
 
+
 setup(
     name='ontology-client',
-    version='0.0.1',
+    version=version,
     description='OLS - REST Api Client - python library',
     long_description=readme,
     author='Marc Chakiachvili',
     author_email='mchakiachvili@ebi.ac.uk',
     url='https://github.com/Ensembl/ontology-client',
-    license=license,
+    license=license_ct,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=import_requirements(),
     classifiers=[
@@ -40,4 +45,3 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
 )
-
