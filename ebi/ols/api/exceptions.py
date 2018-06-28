@@ -27,3 +27,4 @@ class BadParameter(OlsException):
     Passed parameters does not fit with expected
     """
     pass
+

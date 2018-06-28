@@ -3,7 +3,7 @@
 from collections import namedtuple
 
 
-class BaseDto(object):
+class OlsDto(object):
     """
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
     """
@@ -14,8 +14,17 @@ class BaseDto(object):
         for name, value in kwargs.items():
             self.__setattr__(name, value)
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
 
-class OntoAnnotation(BaseDto):
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+class OntoAnnotation(OlsDto):
     license = None
     creator = None
     rights = None
@@ -24,7 +33,7 @@ class OntoAnnotation(BaseDto):
     default_namespace = None
 
 
-class Config(BaseDto):
+class Config(OlsDto):
     id = None
     versionIri = None
     title = None
@@ -49,7 +58,7 @@ class Config(BaseDto):
     skos = None
 
 
-class Ontology(BaseDto):
+class Ontology(OlsDto):
     ontologyId = None
     loaded = None
     updated = None
@@ -62,32 +71,32 @@ class Ontology(BaseDto):
     config = None
 
 
-class OntologyLink(BaseDto):
+class OntologyLink(OlsDto):
     self = None
     terms = None
     properties = None
     individual = None
 
 
-class OboXref(BaseDto):
+class OboXref(OlsDto):
     database = None
     id = None
     description = None
     ur = None
 
 
-class OboCitation(BaseDto):
+class OboCitation(OlsDto):
     definition = None
     oboXref = None
 
 
-class TermAnnotation(BaseDto):
+class TermAnnotation(OlsDto):
     database_cross_reference = None
     has_obo_namespace = None
     id = None
 
 
-class TermsLink(BaseDto):
+class TermsLink(OlsDto):
     parents = None
     ancestors = None
     hierarchicalParents = None
@@ -100,7 +109,7 @@ class TermsLink(BaseDto):
     graph = None
 
 
-class Term(BaseDto):
+class Term(OlsDto):
     iri = None
     label = None
     description = None
@@ -125,5 +134,3 @@ class Term(BaseDto):
 Subset = namedtuple("Subset", ["terms"])
 
 Error = namedtuple("Error", ["error", "message", "status", "path", "timestamp"])
-
-
