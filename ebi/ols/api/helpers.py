@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
 
-from collections import namedtuple, OrderedDict
-
-from coreapi.document import Object
+from collections import namedtuple
 
 
-class BaseDto(object):
+class OlsDto(object):
     """
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
     """
+    api_client = None
 
     def __init__(self, **kwargs) -> None:
         super().__init__()
         for name, value in kwargs.items():
             self.__setattr__(name, value)
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.__dict__ == other.__dict__
+        else:
+            return False
 
-class OntoAnnotation(BaseDto):
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+class OntoAnnotation(OlsDto):
     license = None
     creator = None
     rights = None
@@ -25,7 +33,7 @@ class OntoAnnotation(BaseDto):
     default_namespace = None
 
 
-class Config(BaseDto):
+class Config(OlsDto):
     id = None
     versionIri = None
     title = None
@@ -50,7 +58,7 @@ class Config(BaseDto):
     skos = None
 
 
-class Ontology(BaseDto):
+class Ontology(OlsDto):
     ontologyId = None
     loaded = None
     updated = None
@@ -63,32 +71,32 @@ class Ontology(BaseDto):
     config = None
 
 
-class OntologyLink(BaseDto):
+class OntologyLink(OlsDto):
     self = None
     terms = None
     properties = None
     individual = None
 
 
-class OboXref(BaseDto):
+class OboXref(OlsDto):
     database = None
     id = None
     description = None
     ur = None
 
 
-class OboCitation(BaseDto):
+class OboCitation(OlsDto):
     definition = None
     oboXref = None
 
 
-class TermAnnotation(BaseDto):
+class TermAnnotation(OlsDto):
     database_cross_reference = None
     has_obo_namespace = None
     id = None
 
 
-class TermsLink(BaseDto):
+class TermsLink(OlsDto):
     parents = None
     ancestors = None
     hierarchicalParents = None
@@ -101,7 +109,7 @@ class TermsLink(BaseDto):
     graph = None
 
 
-class Term(BaseDto):
+class Term(OlsDto):
     iri = None
     label = None
     description = None
@@ -126,76 +134,3 @@ class Term(BaseDto):
 Subset = namedtuple("Subset", ["terms"])
 
 Error = namedtuple("Error", ["error", "message", "status", "path", "timestamp"])
-
-
-# TODO add all required DTO objects to trasnfer
-
-
-def _convert_keys(data) -> OrderedDict:
-    """
-    Convert Json like keyx into Python-like keys
-    :param data: a OrderedDict or None
-    :return: OrderedDict
-    """
-    if data is None:
-        return OrderedDict({})
-    return OrderedDict(
-        {k.replace("-", "_"): _convert_keys(v) if isinstance(v, dict) or isinstance(v, Object) else v
-         for k, v in data.items()})
-
-
-def load_data(cls, data):
-    """
-    Load data into related class (assuming it's one of the namedtuple for ontologies, and no inner tuple to load)
-    :param cls: the destination namedtuple
-    :param data: the initial OrderedDIct
-    :return: namedtuple
-    """
-    return cls(**data)
-
-
-def load_ontology_config(data) -> Config:
-    """
-    Load Config object
-    :param data: an OrderedDict received
-    :return: Config namedtuple
-    """
-    onto_annotations = OntoAnnotation(**data.pop("annotations", None))
-    return Config(**data, annotations=onto_annotations)
-
-
-def load_ontology(data) -> Ontology:
-    """
-    Load an Ontology object
-    :param data: an Document received
-    :return: Ontology namedtuple
-    """
-    converted = _convert_keys(data)
-    config = converted.pop("config", None)
-    onto_config = load_ontology_config(config)
-    ontology = Ontology(**converted, config=onto_config)
-    return ontology
-
-
-def load_ontologies(ontologies) -> [Ontology] or Error:
-    """
-    From received Document with list of ontologies Document return a list of Ontology objects
-    :param ontologies: Document
-    :return: [Ontology] or Error
-    """
-    if 'ontologies' not in ontologies:
-        return Error("No Ontologies", "No ontology provided", 400, None, None)
-    else:
-        return [load_ontology(onto) for onto in ontologies['ontologies']]
-
-
-def load_term(term_doc) -> Term or Error:
-    return load_data(Term, term_doc)
-
-
-def load_terms(terms) -> [Term] or Error:
-    if 'terms' not in terms:
-        return Error("No Term", "No term provided", 400, None, None)
-    else:
-        return [load_term(term) for term in terms['terms']]
-    pass

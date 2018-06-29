@@ -7,53 +7,74 @@ import coreapi.exceptions
 from coreapi import Client, Document
 from hal_codec import HALCodec
 
+import ebi.ols.api.exceptions as exceptions
+import ebi.ols.api.utils as utils
 import ebi.ols.api.helpers as helpers
-from ebi.ols.api.utils import has_next, has_first, has_last, has_prev
+import ebi.ols.api.lists as lists
 
 
-class OLSClient(object):
-    """
-    TODO: add individuals and properties services
-    OLS Client ontologies client
+class OntologiesClient(object):
+    urn = "/ols/api/ontologies"
+    document = None
 
-    """
-    base_url = "https://www.ebi.ac.uk/ols/api"
-    decoders = [HALCodec()]
-    base_document = None
+    @property
+    def uri(self):
+        return self.parent.site + self.urn
 
-    def __init__(self, url=None) -> None:
-        self.client = Client(decoders=self.decoders)
-        if url is not None:
-            self.base_url = url
-        self.base_document = self.client.get(self.base_url, force_codec=HALCodec)
+    def __init__(self, parent) -> None:
+        self.parent = parent
+        self.document = parent.document
 
-    def ontologies(self, page=None, size=None) -> Document:
+    def list(self, page=None, size=None) -> [helpers.Ontology] or exceptions.BadParameter:
         params = {'page': page if page else '', 'size': size if size else 20}
-        ontologies = self.client.action(self.base_document, ["ontologies"], params=params, validate=False)
-        if 'ontologies' in ontologies.data:
+        document = self.parent.client.action(self.document, ['ontologies'], params=params, validate=False)
+
+        if 'ontologies' in document.data:
             # only return ontologies if some exists
-            return ontologies
+            return lists.OntologyList(self.parent, document)
         else:
             # else return a error
-            raise coreapi.exceptions.ErrorMessage(
-                helpers.Error(error="Bad Request", message="No corresponding ontologies", status=400,
-                              path='ontologies', timestamp=time.time()))
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="No corresponding ontologies for request",
+                              status=400, path='ontologies', timestamp=time.time()))
 
-    def ontology(self, onto_name) -> Document:
-        """
-        Get ontology details from its short identifier i.e go, fypo etc.
+    def details(self, ontology_id):
+        try:
+            document = self.parent.client.get('/'.join([self.uri, ontology_id]))
+            return utils.load_ontology(document)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise exceptions.OlsException(e)
 
-        :param onto_name:
-        """
-        uri = "/".join([self.base_url, "ontologies", onto_name])
-        document = self.client.get(uri)
-        return document
 
-    def terms(self, ontology_id, page=None, size=None, filters=None) -> Document or coreapi.exceptions.ErrorMessage:
+class IndividualsClient(object):
+    def __init__(self, document) -> None:
+        super().__init__()
+        self.document = document
+
+
+class PropertiesClient(object):
+    def __init__(self, document) -> None:
+        super().__init__()
+        self.document = document
+
+
+class TermsClient(object):
+    urn = "/ols/api/terms"
+
+    def uri(self, ontology=None):
+        if ontology:
+            return '/'.join([OlsClient.site, OntologiesClient.urn, ontology])
+        return OlsClient.site + self.urn
+
+    def __init__(self, client) -> None:
+        self.client = client.client
+        self.document = client.document
+
+    def list(self, ontology=None, page=None, size=None, filters=None) -> lists.TermList:
         """
         Get ontologies terms, if no filter set, return a first page of terms
         TODO more testing about terms filtering parameters currently available in API
-        :param ontology_id: ontology unique short code
+        :param ontology: ontology unique short code
         :param size: size of excpeted list, default 20
         :param page: the requested page number
         :param filters: a dict with following possible keys
@@ -70,44 +91,102 @@ class OLSClient(object):
         """
         if filters is None:
             filters = {}
-
         params = {'page': page if page else '', 'size': size if size else 20}
-        if ontology_id is None:
-            # direct terms list
-            if params.get('size') < 200:
-                warnings.warn('You should not consider calling terms without higher page size, request may be slow')
-                params['size'] = 200
-            path = self.base_url + '/terms'
-            terms = self.client.action(self.base_document, ["terms"], params=params, validate=False)
+        if ontology:
+            path = self.uri(ontology)
+            document = self.client.get(path)
         else:
-            # update with eventual filters to apply
-            # TODO add filters checks
-            path = self.base_url + '/ontology/' + ontology_id + '/terms'
-            try:
-                assert set(filters.keys()).issubset({'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
-                assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
-            except AssertionError as e:
-                raise coreapi.exceptions.ErrorMessage(
-                    helpers.Error(error="Bad Request", message=str(e), status=400,
-                                  path=path, timestamp=time.time()))
+            warnings.warn('You should not consider calling terms without ontology filter, request may be slow')
+            if params.get('size') < 200:
+                params['size'] = 200
+            path = self.uri()
+            document = self.document
+        try:
+            assert set(filters.keys()).issubset({'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
+            assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
             params.update(filters)
-            document = self.ontology(ontology_id)
-            terms = self.client.action(document, ['terms'], params=params, validate=False)
+        except AssertionError as e:
+            raise exceptions.BadParameter(helpers.Error(error="Bad Request", message=str(e), status=400,
+                                                        path=path, timestamp=time.time()))
+        terms = self.client.action(document, ['terms'], params=params, validate=False)
 
         if 'terms' in terms.data:
             # only return ontologies if some exists
-            return terms
+            return lists.TermList(self, terms)
         else:
             # else return a error
-            raise coreapi.exceptions.ErrorMessage(
-                helpers.Error(error="Bad Request", message="No corresponding terms", status=400,
-                              path=path, timestamp=time.time()))
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="No corresponding terms for request",
+                              status=400, path='terms', timestamp=time.time()))
 
-    def term(self, ontology_id, term_iri) -> Document or coreapi.exceptions.ErrorMessage:
-        encoded_iri = urllib.parse.quote_plus(urllib.parse.quote_plus(term_iri))
-        document = self.client.get(
-            '/'.join([self.base_url, 'ontologies', ontology_id, 'terms', encoded_iri]), force_codec=HALCodec)
-        return document
+    def details(self, ontology, iri):
+        encoded_iri = urllib.parse.quote_plus(urllib.parse.quote_plus(iri))
+        base_url = '/'.join([self.uri(ontology), 'terms', encoded_iri])
+        self.document = self.client.get(base_url)
+        return utils.load_term(self.client.get(base_url))
+
+    def _load_relation(self, relation):
+        if relation not in self.document:
+            raise exceptions.NotFoundException(
+                helpers.Error(error="No such reltaion", message="No corresponding relation for request",
+                              status=404, path='terms', timestamp=time.time()))
+        objects = self.client.action(self.document, [relation])
+        return lists.TermList(self, objects)
+
+    def ancestors(self):
+        return self._load_relation('ancestors')
+
+    def parents(self, term):
+        return self._load_relation('parents')
+
+    def hierarchical_parents(self):
+        return self._load_relation('hierarchicalParents')
+
+    def hierarchical_ancestors(self):
+        return self._load_relation('hierarchicalAncestors')
+
+    def graphs(self):
+        return self._load_relation('graphs')
+
+    def jstree(self):
+        return self._load_relation('jstree')
+
+
+class OlsClient(object):
+    """
+    TODO: add individuals and properties services
+    OLS Client ontologies client
+
+    """
+    site = 'https://www.ebi.ac.uk'
+    uri = "/ols/api"
+    decoders = [HALCodec()]
+    document = None
+
+    @property
+    def url(self):
+        return self.site + self.uri
+
+    def __init__(self, site=None) -> None:
+        self.client = Client(decoders=self.decoders)
+        if site:
+            self.site = site
+        self.document = self.client.get(self.url, force_codec=HALCodec)
+        self.ontologies = OntologiesClient(self)
+        self.terms = TermsClient(self)
+        self.individuals = IndividualsClient(self)
+        self.properties = PropertiesClient(self)
+
+    def ontology(self, ontology_id) -> helpers.Ontology:
+        """
+        Short cut method to load an return a single Ontology document via a OntologyClient.details
+        :param: ontology_id the ontology unique id
+
+        """
+        return self.ontologies.details(ontology_id)
+
+    def term(self, ontology, iri):
+        return self.terms.details(ontology, iri)
 
     def search(self, filters=None) -> Document or coreapi.exceptions.ErrorMessage:
         # TODO take care of when search will be listed as method in base_uri
@@ -115,61 +194,6 @@ class OLSClient(object):
         if filters is None:
             filters = {}
         return None
-
-    def next(self, document: Document) -> Document:
-        if has_next(document):
-            return self.client.action(document, ['next'])
-        raise coreapi.exceptions.ErrorMessage(
-            helpers.Error(error="Bad Request", message="No next item", status=400,
-                          path='ontologies', timestamp=time.time()))
-
-    def prev(self, document: Document) -> Document:
-        if has_prev(document):
-            return self.client.action(document, ['prev'])
-        raise coreapi.exceptions.ErrorMessage(
-            helpers.Error(error="Bad Request", message="No prev item", status=400,
-                          path='ontologies', timestamp=time.time()))
-
-    def last(self, document: Document) -> Document:
-        if has_last(document):
-            return self.client.action(document, ['last'])
-        raise coreapi.exceptions.ErrorMessage(
-            helpers.Error(error="Bad Request", message="No last item", status=400,
-                          path='ontologies', timestamp=time.time()))
-
-    def first(self, document: Document) -> Document:
-        if has_first(document):
-            return self.client.action(document, ['first'])
-        raise coreapi.exceptions.ErrorMessage(
-            helpers.Error(error="Bad Request", message="No first item", status=400,
-                          path='ontologies', timestamp=time.time()))
-
-
-class TermClient(OLSClient):
-
-    def __init__(self, url: str = None, term: helpers.Term = None) -> None:
-        encoded_iri = urllib.parse.quote_plus(urllib.parse.quote_plus(term.iri))
-        base_url = super().base_url if url is None else url
-        base_url += '/'.join(['/ontologies', term.ontology_name, 'terms', encoded_iri])
-        super().__init__(base_url)
-
-    def ancestors(self):
-        return self.client.action(self.base_document, ['ancestors'])
-
-    def parents(self, term):
-        return self.client.action(self.base_document, ['parents'])
-
-    def hierarchicalParents(self):
-        return self.client.action(self.base_document, ['hierarchicalParents'])
-
-    def hierarchicalAncestors(self):
-        return self.client.action(self.base_document, ['hierarchicalAncestors'])
-
-    def graphs(self):
-        return self.client.action(self.base_url, ['graph'])
-
-    def jstree(self):
-        return self.client.action(self.base_url, ['jstree'])
 
 
 if __name__ == "__main__":
