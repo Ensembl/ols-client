@@ -6,7 +6,7 @@ from coreapi import Object
 from ebi.ols.api.helpers import Config, OntoAnnotation, Ontology, Term
 from ols.api.helpers import Error
 
-__all__ = ['load_ontologies', 'load_ontology']
+__all__ = ['load_data', 'load_ontology']
 
 
 def convert_keys(data) -> OrderedDict:

@@ -131,7 +131,7 @@ class OntologyTestSuite(unittest.TestCase):
             # direct_term = helpers.load_term(direct_term)
             self._checkTerm(term)
             self.assertEqual(term, direct_term)
-            ancestors = self.client.terms.ancestors(direct_term)
+            ancestors = self.client.terms.ancestors()
             self.assertIsInstance(ancestors, lists.TermList)
             """
             term_client = TermsClient(self.base_url, term)

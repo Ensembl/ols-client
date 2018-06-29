@@ -69,6 +69,7 @@ class TermsClient(object):
     def __init__(self, client) -> None:
         self.client = client.client
         self.document = client.document
+        self.current_term_doc = None
 
     def list(self, ontology=None, page=None, size=None, filters=None) -> lists.TermList:
         """
@@ -89,18 +90,20 @@ class TermsClient(object):
             - start: The results page number
         :return: A list of Term
         """
+        # reset current item if any
+        self.current_term_doc = None
         if filters is None:
             filters = {}
         params = {'page': page if page else '', 'size': size if size else 20}
         if ontology:
             path = self.uri(ontology)
-            document = self.client.get(path)
+            self.document = self.client.get(path)
         else:
             warnings.warn('You should not consider calling terms without ontology filter, request may be slow')
             if params.get('size') < 200:
                 params['size'] = 200
             path = self.uri()
-            document = self.document
+            # document = self.document
         try:
             assert set(filters.keys()).issubset({'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
             assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
@@ -108,7 +111,7 @@ class TermsClient(object):
         except AssertionError as e:
             raise exceptions.BadParameter(helpers.Error(error="Bad Request", message=str(e), status=400,
                                                         path=path, timestamp=time.time()))
-        terms = self.client.action(document, ['terms'], params=params, validate=False)
+        terms = self.client.action(self.document, ['terms'], params=params, validate=False)
 
         if 'terms' in terms.data:
             # only return ontologies if some exists
@@ -122,15 +125,15 @@ class TermsClient(object):
     def details(self, ontology, iri):
         encoded_iri = urllib.parse.quote_plus(urllib.parse.quote_plus(iri))
         base_url = '/'.join([self.uri(ontology), 'terms', encoded_iri])
-        self.document = self.client.get(base_url)
-        return utils.load_term(self.client.get(base_url))
+        self.current_term_doc = self.client.get(base_url)
+        return utils.load_term(self.current_term_doc)
 
     def _load_relation(self, relation):
-        if relation not in self.document:
+        if not self.current_term_doc or relation not in self.current_term_doc:
             raise exceptions.NotFoundException(
-                helpers.Error(error="No such reltaion", message="No corresponding relation for request",
+                helpers.Error(error="No such relation", message="No corresponding relation for request",
                               status=404, path='terms', timestamp=time.time()))
-        objects = self.client.action(self.document, [relation])
+        objects = self.client.action(self.current_term_doc, [relation])
         return lists.TermList(self, objects)
 
     def ancestors(self):
