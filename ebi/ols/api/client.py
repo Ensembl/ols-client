@@ -125,24 +125,31 @@ class TermsClient(object):
         self.document = self.client.get(base_url)
         return utils.load_term(self.client.get(base_url))
 
-    def ancestors(self, term):
-        ancestors = self.client.action(self.document, ['ancestors'])
-        return lists.TermList(self, ancestors)
+    def _load_relation(self, relation):
+        if relation not in self.document:
+            raise exceptions.NotFoundException(
+                helpers.Error(error="No such reltaion", message="No corresponding relation for request",
+                              status=404, path='terms', timestamp=time.time()))
+        objects = self.client.action(self.document, [relation])
+        return lists.TermList(self, objects)
+
+    def ancestors(self):
+        return self._load_relation('ancestors')
 
     def parents(self, term):
-        return self.client.action(self.document, ['parents'])
+        return self._load_relation('parents')
 
-    def hierarchicalParents(self):
-        return self.client.action(self.document, ['hierarchicalParents'])
+    def hierarchical_parents(self):
+        return self._load_relation('hierarchicalParents')
 
-    def hierarchicalAncestors(self):
-        return self.client.action(self.document, ['hierarchicalAncestors'])
+    def hierarchical_ancestors(self):
+        return self._load_relation('hierarchicalAncestors')
 
     def graphs(self):
-        return self.client.action(self.document, ['graph'])
+        return self._load_relation('graphs')
 
     def jstree(self):
-        return self.client.action(self.document, ['jstree'])
+        return self._load_relation('jstree')
 
 
 class OlsClient(object):
