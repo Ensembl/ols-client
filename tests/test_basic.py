@@ -139,8 +139,7 @@ class OntologyTestSuite(unittest.TestCase):
         # test search engine for terms
         terms = self.client.search(query='transcriptome', rows=50)
         self.assertGreaterEqual(terms.nb_pages, 3)
-        for term in terms:
-            print(term.label)
+        self._checkTerms(terms)
 
     def test_individuals(self):
         self.assertTrue(True)

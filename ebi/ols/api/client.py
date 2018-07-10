@@ -279,9 +279,7 @@ class OlsClient(object):
         if 'ontology' in filters.keys():
             uri = "q={}&exact=on&" + filters_uri + "&ontology={}".format(query, filters.get('ontology'))
         uri += '&rows={}&start={}'.format(rows, start)
-        print('search uri ', uri)
         terms = self.client.get(uri, format='json')
-        print(terms)
         if 'response' in terms and 'docs' in terms.get('response'):
             # only return ontologies if some exists
             return lists.SearchTermsList(self, terms, query, filters, rows, start)

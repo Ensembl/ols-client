@@ -150,8 +150,6 @@ class SearchTermsList(object):
             self.start = document[self.path]['start']
             self.nb_pages = math.ceil(self.total / self.rows)
             self.page_index = math.floor(self.start / self.page_size) + 1
-            print(self.page_size, self.total, self.page_size, self.page_index, self.nb_pages, self.start)
-
         except KeyError:
             raise exceptions.OlsException(helpers.Error(error="Data Error", message="No page information", status=500,
                                                         path=self.path, timestamp=time.time()))
@@ -184,7 +182,6 @@ class SearchTermsList(object):
             loaded = self._item_to_object(self._data[self.current])
         elif self.page_index < self.nb_pages:
             next_step = self.start + self.page_size
-            print('to next page' + str(next_step))
             terms_list = self.client.search(self.query, self.filters, self.rows, self.start + self.page_size)
             self._init_page(terms_list.page_document)
             loaded = self._item_to_object(self._data[self.current])
