@@ -4,7 +4,7 @@ from collections.__init__ import OrderedDict
 from coreapi import Object
 
 from ebi.ols.api.helpers import Config, OntoAnnotation, Ontology, Term
-from ols.api.helpers import Error
+from ebi.ols.api.helpers import Error
 
 __all__ = ['load_data', 'load_ontology']
 
