@@ -4,11 +4,11 @@ import urllib.parse
 import warnings
 
 import coreapi.exceptions
-from coreapi import Client, Document
-from hal_codec import HALCodec
+from coreapi import Client, codecs
 
 import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.utils as utils
+from ebi.ols.api.codec import HALCodec
 import ebi.ols.api.helpers as helpers
 import ebi.ols.api.lists as lists
 
@@ -45,6 +45,13 @@ class OntologiesClient(object):
         except coreapi.exceptions.CoreAPIException as e:
             raise exceptions.OlsException(e)
 
+    def terms(self, ontology_id):
+        try:
+            document = self.parent.client.get('/'.join([self.uri, ontology_id, 'terms']))
+            return lists.TermList(self.parent, document)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise exceptions.OlsException(e)
+
 
 class IndividualsClient(object):
     def __init__(self, document) -> None:
@@ -71,6 +78,10 @@ class TermsClient(object):
         self.document = client.document
         self.current_term_doc = None
 
+    @staticmethod
+    def term_uri(iri):
+        return urllib.parse.quote_plus(urllib.parse.quote_plus(iri))
+
     def list(self, ontology=None, page=None, size=None, filters=None) -> lists.TermList:
         """
         Get ontologies terms, if no filter set, return a first page of terms
@@ -91,12 +102,14 @@ class TermsClient(object):
         :return: A list of Term
         """
         # reset current item if any
-        self.current_term_doc = None
         if filters is None:
             filters = {}
         params = {'page': page if page else '', 'size': size if size else 20}
         if ontology:
-            path = self.uri(ontology)
+            if isinstance(ontology, helpers.Ontology):
+                path = self.uri(ontology.ontologyId)
+            else:
+                path = self.uri(ontology)
             self.document = self.client.get(path)
         else:
             warnings.warn('You should not consider calling terms without ontology filter, request may be slow')
@@ -123,36 +136,44 @@ class TermsClient(object):
                               status=400, path='terms', timestamp=time.time()))
 
     def details(self, ontology, iri):
-        encoded_iri = urllib.parse.quote_plus(urllib.parse.quote_plus(iri))
-        base_url = '/'.join([self.uri(ontology), 'terms', encoded_iri])
-        self.current_term_doc = self.client.get(base_url)
-        return utils.load_term(self.current_term_doc)
+        base_url = '/'.join([self.uri(ontology), 'terms', self.term_uri(iri)])
+        document = self.client.get(base_url)
+        return utils.load_term(document)
 
-    def _load_relation(self, relation):
-        if not self.current_term_doc or relation not in self.current_term_doc:
-            raise exceptions.NotFoundException(
-                helpers.Error(error="No such relation", message="No corresponding relation for request",
-                              status=404, path='terms', timestamp=time.time()))
-        objects = self.client.action(self.current_term_doc, [relation])
-        return lists.TermList(self, objects)
+    def _load_relation(self, term, relation):
+        terms = self.client.get('/'.join([self.uri(term.ontology_name), 'terms', self.term_uri(term.iri), relation]))
+        if 'terms' in terms.data:
+            # only return ontologies if some exists
+            return lists.TermList(self, terms)
+        else:
+            # else return a error
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="No corresponding {} for {}".format(relation, term.label),
+                              status=400, path='terms', timestamp=time.time()))
 
-    def ancestors(self):
-        return self._load_relation('ancestors')
+    def ancestors(self, term):
+        return self._load_relation(term, 'ancestors')
 
     def parents(self, term):
-        return self._load_relation('parents')
+        return self._load_relation(term, 'parents')
 
-    def hierarchical_parents(self):
-        return self._load_relation('hierarchicalParents')
+    def hierarchical_parents(self, term):
+        return self._load_relation(term, 'hierarchicalParents')
 
-    def hierarchical_ancestors(self):
-        return self._load_relation('hierarchicalAncestors')
+    def hierarchical_ancestors(self, term):
+        return self._load_relation(term, 'hierarchicalAncestors')
 
-    def graphs(self):
-        return self._load_relation('graphs')
+    def hierarchical_children(self, term):
+        return self._load_relation(term, 'hierarchicalChildren')
 
-    def jstree(self):
-        return self._load_relation('jstree')
+    def hierarchical_descendants(self, term):
+        return self._load_relation(term, 'hierarchicalDescendants')
+
+    def graphs(self, term):
+        return self._load_relation(term, 'graphs')
+
+    def jstree(self, term):
+        return self._load_relation(term, 'jstree')
 
 
 class OlsClient(object):
@@ -162,19 +183,19 @@ class OlsClient(object):
 
     """
     site = 'https://www.ebi.ac.uk'
-    uri = "/ols/api"
-    decoders = [HALCodec()]
+    uri = "ols/api"
+    decoders = [HALCodec(), codecs.JSONCodec()]
     document = None
 
     @property
     def url(self):
-        return self.site + self.uri
+        return self.site + '/' + self.uri
 
     def __init__(self, site=None) -> None:
         self.client = Client(decoders=self.decoders)
         if site:
             self.site = site
-        self.document = self.client.get(self.url, force_codec=HALCodec)
+        self.document = self.client.get(self.url)
         self.ontologies = OntologiesClient(self)
         self.terms = TermsClient(self)
         self.individuals = IndividualsClient(self)
@@ -191,12 +212,84 @@ class OlsClient(object):
     def term(self, ontology, iri):
         return self.terms.details(ontology, iri)
 
-    def search(self, filters=None) -> Document or coreapi.exceptions.ErrorMessage:
+    def search(self, query, filters=None, rows=20, start=0) -> lists.TermList or coreapi.exceptions.ErrorMessage:
         # TODO take care of when search will be listed as method in base_uri
+        """
+        Search term with query string
+        Currently doesn't support filters on ChildrenOf and allChildrenOf
+        Warning: not fully tested
+
+        :param query:
+        :param filters:
+        :param rows:
+        :param start:
+        :return:
+        """
 
         if filters is None:
             filters = {}
-        return None
+        try:
+            assert set(filters.keys()).issubset(
+                {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
+                 'local'}) or len(filters) == 0, "Unauthorized filter key"
+        except AssertionError as e:
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="Unexpected parameter name {}".format(e),
+                              status=400, path='search', timestamp=time.time()))
+        try:
+            if 'fieldList' in filters:
+                param = 'fieldList'
+                assert (set(filters['fieldList'].keys().issubset(
+                    {'iri', 'ontology_name', 'ontology_prefix', 'short_form', 'description', 'id', 'label',
+                     'is_defining_ontology', 'obo_id', 'type'}
+                )))
+            if 'queryFields' in filters:
+                param = 'queryFields'
+                assert (set(filters['queryFields'].keys().issubset(
+                    {'label', 'synonym', 'description', 'short_form', 'obo_id', 'annotations', 'logical_description',
+                     'iri'}
+                )))
+            if 'type' in filters:
+                param = 'type'
+                assert (set(filters['queryFields'].keys().issubset(
+                    {'class', 'property', 'individual', 'ontology'}
+                )))
+            if 'exact' in filters:
+                param = 'exact'
+                assert (filters['exact'] in ['true', 'false'])
+            if 'groupFields' in filters:
+                param = 'groupFields'
+                assert (filters['groupFields'] in ['true', 'false'])
+            if 'obsoletes' in filters:
+                param = 'obsoletes'
+                assert (filters['obsoletes'] in ['true', 'false'])
+            if 'local' in filters:
+                param = 'local'
+                assert (filters['local'] in ['true', 'false'])
+
+        except AssertionError as e:
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="Unexpected value {} for param {}".format(e, param),
+                              status=400, path='search', timestamp=time.time()))
+        uri = '/'.join([self.site, self.uri, 'search'])
+        uri += '?q=' + query
+        filters_uri = ''
+        for filter_name, filter_value in filters.items():
+            filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
+        if 'ontology' in filters.keys():
+            uri = "q={}&exact=on&" + filters_uri + "&ontology={}".format(query, filters.get('ontology'))
+        uri += '&rows={}&start={}'.format(rows, start)
+        print('search uri ', uri)
+        terms = self.client.get(uri, format='json')
+        print(terms)
+        if 'response' in terms and 'docs' in terms.get('response'):
+            # only return ontologies if some exists
+            return lists.SearchTermsList(self, terms, query, filters, rows, start)
+        else:
+            # else return a error
+            raise exceptions.BadParameter(
+                helpers.Error(error="Bad Parameter", message="No corresponding terms for request",
+                              status=400, path='search', timestamp=time.time()))
 
 
 if __name__ == "__main__":

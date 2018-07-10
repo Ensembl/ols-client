@@ -1,22 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import unittest
-import warnings
-import coreapi.exceptions
 
-import ebi.ols.api.helpers as helpers
-import ebi.ols.api.utils as utils
 import ebi.ols.api.exceptions as exceptions
-from ebi.ols.api.exceptions import *
+import ebi.ols.api.helpers as helpers
 import ebi.ols.api.lists as lists
 from ebi.ols.api.client import OlsClient
+from ebi.ols.api.exceptions import *
 
 
 class OntologyTestSuite(unittest.TestCase):
     """Basic test cases."""
     def setUp(self):
         super().setUp()
-        self.client = OlsClient('https://wwwdev.ebi.ac.uk')
+        self.client = OlsClient('https://www.ebi.ac.uk')
 
     def test_ontologies_list(self):
         # standard first page
@@ -43,13 +40,13 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(current, 1)
 
     def test_ontology(self):
-        ontology = self.client.ontologies.details('fypo')
+        ontology = self.client.ontologies.details('co_337')
         self._checkOntology(ontology)
         terms = self.client.terms.list(ontology=ontology.ontologyId, size=100)
         self.assertEqual(terms.page_size, 100)
-        self.assertGreater(terms.nb_pages, 5)
+        self.assertGreater(terms.nb_pages, 3)
         # check only the five first pages
-        for i in range(0, 6):
+        for i in range(1, 4):
             terms = self.client.terms.list(ontology=ontology.ontologyId, page=i, size=100)
             self._checkTerms(terms.current_page())
 
@@ -131,18 +128,19 @@ class OntologyTestSuite(unittest.TestCase):
             # direct_term = helpers.load_term(direct_term)
             self._checkTerm(term)
             self.assertEqual(term, direct_term)
-            ancestors = self.client.terms.ancestors()
+            ancestors = self.client.terms.ancestors(direct_term)
             self.assertIsInstance(ancestors, lists.TermList)
-            """
-            term_client = TermsClient(self.base_url, term)
-            ancestors_doc = term_client.ancestors()
-            ancestors = ols.api.utils.load_terms(ancestors_doc)
-            self._checkTerms(ancestors, ancestors_doc.data['terms'])
-            """
 
     def test_search(self):
+        """
+        Need more tests for filtering and selected fields in Results
+        :return:
+        """
         # test search engine for terms
-        pass
+        terms = self.client.search(query='transcriptome', rows=50)
+        self.assertGreaterEqual(terms.nb_pages, 3)
+        for term in terms:
+            print(term.label)
 
     def test_individuals(self):
         self.assertTrue(True)
