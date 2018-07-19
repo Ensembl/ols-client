@@ -24,7 +24,7 @@ def import_requirements():
 
 
 setup(
-    name='ontology-client',
+    name='ebi-ols-client',
     version=version,
     description='OLS - REST Api Client - python library',
     long_description=readme,
