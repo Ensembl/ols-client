@@ -6,10 +6,13 @@ class OlsException(Exception):
     A base class for all `OLS` exceptions.
     """
     def __init__(self, error):
-        self.error = error
+        self.error = error['message']
+        self.status = error['status']
+        self.origin = error['exception']
+        self.timestamp = error['timestamp']
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__, repr(self.error))
+        return '{}({}) [{}-{}]'.format(self.origin, self.status, self.timestamp, self.error)
 
     def __str__(self):
         return str(self.error)
