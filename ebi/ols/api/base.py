@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
+import math
 import sys
 import time
 import urllib.parse
+import warnings
 
-from coreapi.exceptions import ErrorMessage
 from coreapi import codecs, Client
+from coreapi.exceptions import ErrorMessage
 
-from ols.api import exceptions, helpers
+from ols.api import exceptions
 from ols.api.codec import HALCodec
 
 decoders = [HALCodec(), codecs.JSONCodec()]
@@ -15,6 +17,36 @@ site = 'https://www.ebi.ac.uk/ols/api'
 
 def filters_ontologies(filters):
     return filters or {}
+
+
+def filters_response(filters):
+
+    assert set(filters.keys()).issubset(
+        {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
+         'local'}) or len(filters) == 0, "Unauthorized filter key"
+    if 'fieldList' in filters:
+        assert (set(filters['fieldList'].keys().issubset(
+            {'iri', 'ontology_name', 'ontology_prefix', 'short_form', 'description', 'id', 'label',
+             'is_defining_ontology', 'obo_id', 'type'}
+        )))
+    if 'queryFields' in filters:
+        assert (set(filters['queryFields'].keys().issubset(
+            {'label', 'synonym', 'description', 'short_form', 'obo_id', 'annotations', 'logical_description',
+             'iri'}
+        )))
+    if 'type' in filters:
+        assert (set(filters['queryFields'].keys().issubset(
+            {'class', 'property', 'individual', 'ontology'}
+        )))
+    if 'exact' in filters:
+        assert (filters['exact'] in ['true', 'false'])
+    if 'groupFields' in filters:
+        assert (filters['groupFields'] in ['true', 'false'])
+    if 'obsoletes' in filters:
+        assert (filters['obsoletes'] in ['true', 'false'])
+    if 'local' in filters:
+        assert (filters['local'] in ['true', 'false'])
+    return filters
 
 
 def filters_terms(filters):
@@ -28,6 +60,14 @@ def uri_ontologies(identifier):
 
 
 def uri_terms(identifier):
+    return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+
+
+def uri_individuals(identifier):
+    return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+
+
+def uri_properties(identifier):
     return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
 
 
@@ -49,7 +89,14 @@ class DetailClientMixin(BaseClient):
         path = "/".join([site, self.uri, identifier_fn(identifier)])
         try:
             document = self.client.get(path)
-            return self.elem_class(data=document)
+            if self.elem_class.path in document.data:
+                # the request returned a list of object
+                warnings.warn('Multiple values returned for identifier')
+                for elem in document.data[self.elem_class.path]:
+                    if 'is_defining_ontology' in elem and elem['is_defining_ontology']:
+                        return self.elem_class(**elem)
+                return self.elem_class(**document.data[self.elem_class.path][0])
+            return self.elem_class(**document.data)
         except ErrorMessage as e:
             raise exceptions.OlsException(e.error)
 
@@ -63,7 +110,7 @@ class ListClientMixin(BaseClient):
         self.elem_class = elem_class
         self.index = 0
 
-    def __call__(self, filters=None):
+    def __call__(self, filters=None, action=None):
         if filters is None:
             filters = {}
         params = {'page': 0, 'size': self.page_size}
@@ -74,13 +121,25 @@ class ListClientMixin(BaseClient):
         except AttributeError:
             pass
         except AssertionError as e:
-            raise exceptions.BadParameter(helpers.Error(error="Bad Request", message=str(e), status=400,
-                                                        path=self.path, timestamp=time.time()))
+            raise exceptions.BadParameter({'error': "Bad Request", 'message': str(e),
+                                           'status': 400, 'path': self.path, 'timestamp': time.time()})
 
         params.update(filters)
-        self.document = self.client.action(self.document, [self.path], params=params, validate=False)
+        path = action if action else self.path
+        self.fetch_document(path, params)
         self.index = 0
+
         return self
+
+    def fetch_document(self, path, params=None):
+        if params is None:
+            params = {}
+        self.document = self.client.action(self.document, [path], params=params, validate=False)
+
+    def fetch_page(self, page):
+        self.document = self.client.get(
+            '/'.join([site, self.path]) + '?page={}&size={}'.format(page, self.page_size),
+            force_codec='hal')
 
     def __len__(self):
         return self.document['page']['totalElements']
@@ -97,12 +156,8 @@ class ListClientMixin(BaseClient):
         return self.document['page']['number']
 
     @property
-    def n_elements(self):
-        return self.document['page']['totalElements']
-
-    @property
     def pages(self):
-        return self.document['page']['totalPages']
+        return self.document['page']['totalPages'] - 1
 
     @property
     def data(self):
@@ -112,29 +167,85 @@ class ListClientMixin(BaseClient):
         if self.index < len(self.data):
             # Simply return current indexed item
             pass
-        elif self.page < self.pages - 1:
-            self.document = self.client.action(self.document, ['next'])
+        elif self.page < self.pages:
+            self.fetch_document('next')
+            # self.document = self.client.action(self.document, ['next'])
             self.index = 0
         else:
             raise StopIteration
-        loaded = self.elem_class(data=self.data[self.index])
+        loaded = self.elem_class(**self.data[self.index])
         self.index += 1
         return loaded
 
     def __getitem__(self, item):
         if type(item) is not int:
             raise TypeError("Key indexes must be int, not {}".format(type(item)))
-        if item > self.n_elements - 1:
+        if item > (len(self) - 1):
             # TODO relace with proper ArrayError Text
             raise KeyError("No corresponding key {}".format(item))
         else:
             page = item // self.page_size
             index = item % self.page_size
             if page == self.page:
-                return self.elem_class(data=self.data[index])
+                return self.elem_class(**self.data[index])
             else:
-                self.document = self.client.get(
-                    '/'.join([site, self.path]) + '?page={}&size={}'.format(page, self.page_size),
-                    force_codec='hal')
+                self.fetch_page(page)
                 self.index = index
-                return self.elem_class(data=self.data[index])
+                return self.elem_class(**self.data[index])
+
+
+class SearchClientMixin(ListClientMixin):
+    base_search_uri = ''
+
+    def __call__(self, filters=None, query=None):
+        if query is None:
+            raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
+                                           'status': 400, 'path': 'search', 'timestamp': time.time()})
+        self.query = query  #
+
+        return super().__call__(filters)
+
+    def __len__(self):
+        return self.document[self.path]['numFound']
+
+    @property
+    def start(self):
+        return self.document[self.path]['start']
+
+    @property
+    def path(self):
+        return 'response'
+
+    @property
+    def page(self):
+        return math.floor(self.start / self.page_size) + 1
+
+    @property
+    def pages(self):
+        return math.ceil(len(self) / self.page_size)
+
+    @property
+    def data(self):
+        return self.document.data[self.path]['docs']
+
+    def fetch_document(self, path, params=None):
+        if params is None:
+            params = {}
+        params.pop('page', 0)
+        params.pop('size', 0)
+        start = 0 if path != 'next' else self.start + self.page_size
+        uri = '/'.join([site, 'search'])
+        uri += '?q=' + self.query
+        filters_uri = ''
+        for filter_name, filter_value in params.items():
+            print(filter_name, filter_value)
+            filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
+        if 'ontology' in params:
+            uri = "q={}&exact=on&" + filters_uri + "&ontology={}".format(self.query, params.get('ontology'))
+        self.base_search_uri = uri
+        uri += '&rows=100&start={}'.format(start)
+        self.document = self.client.get(uri, format='hal')
+
+    def fetch_page(self, page):
+        uri = self.base_search_uri + '&rows=100&start={}'.format(page * self.page_size)
+        self.document = self.client.get(uri, format='hal')

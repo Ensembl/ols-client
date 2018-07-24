@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import re
 from collections import namedtuple, OrderedDict
 
 import inflection
-from coreapi import Object, Link
+from coreapi import Object
 
 from ebi.ols.api.base import *
+
+
+def underscore(value):
+    val = inflection.underscore(value)
+    return re.sub('\s+', '_', val)
 
 
 def convert_keys(data) -> OrderedDict:
@@ -17,22 +23,19 @@ def convert_keys(data) -> OrderedDict:
     if data is None:
         return OrderedDict({})
     return OrderedDict(
-        {inflection.underscore(k): convert_keys(v) if isinstance(v, dict) or isinstance(v, Object) else v for k, v in
+        {underscore(k): convert_keys(v) if isinstance(v, dict) or isinstance(v, Object) else v for k, v in
          data.items()})
 
 
-class OlsDto(object):
+class OLSHelper(object):
     """
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
     """
-    path = None
 
-    def __init__(self, data, **kwargs) -> None:
-        super().__init__()
-        for name, value in kwargs.items():
+    def __init__(self, **kwargs) -> None:
+        converted = convert_keys(kwargs)
+        for name, value in converted.items():
             self.__setattr__(name, value)
-        for name, value in data.items():
-            self.__setattr__(name, value) if type(value) is not Link else None
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -44,16 +47,20 @@ class OlsDto(object):
         return not self.__eq__(other)
 
 
-class OntoAnnotation(OlsDto):
+class OntologyAnnotation(OLSHelper):
+    """
+    An ontology annotation item.
+    """
     license = None
-    creator = None
-    rights = None
+    creator = []
+    rights = []
     format_version = None
-    comment = None
+    comment = []
     default_namespace = None
+    contributor = []
 
 
-class Config(OlsDto):
+class OntologyConfig(OLSHelper):
     id = None
     version_iri = None
     title = None
@@ -63,27 +70,35 @@ class Config(OlsDto):
     homepage = None
     version = None
     mailing_list = None
-    creators = None
+    creators = []
     annotations = None
-    fileLocation = None
+    file_location = None
     reasoner_type = None
     obo_slims = None
     label_property = None
-    definition_properties = None
-    synonym_properties = None
-    hierarchical_properties = None
-    base_uris = None
-    hidden_properties = None
-    internal_metadata_properties = None
+    definition_properties = []
+    synonym_properties = []
+    hierarchical_properties = []
+    base_uris = []
+    hidden_properties = []
+    internal_metadata_properties = []
     skos = None
 
-    def __init__(self, data) -> None:
-        onto_annotations = OntoAnnotation(data.pop("annotations", None))
-        super().__init__(data, annotations=onto_annotations)
+    def __init__(self, **kwargs) -> None:
+        annotations = OntologyAnnotation(**kwargs.pop("annotations", {}))
+        super().__init__(**kwargs, annotations=annotations)
+
+    def __repr__(self):
+        return '<OntologyConfig(id={}, iri={}, namespace={}, title={}, version={})>'.format(
+            self.id, self.version_iri, self.namespace, self.title, self.version)
 
 
-class Ontology(OlsDto):
+class Ontology(OLSHelper):
+    """
+    An Ontology element from EBI Ontology lookup service
+    """
     path = 'ontologies'
+
     ontology_id = None
     loaded = None
     updated = None
@@ -94,56 +109,57 @@ class Ontology(OlsDto):
     number_of_properties = None
     number_of_individuals = None
     config = None
+    annotations = {}
 
-    def __init__(self, data) -> None:
-        converted = convert_keys(data)
-        config = converted.pop("config", None)
-        onto_config = Config(data=config)
-        super().__init__(data=converted, config=onto_config)
+    def __init__(self, **kwargs) -> None:
+        config = OntologyConfig(**kwargs.pop("config", {}))
+        super().__init__(**kwargs, config=config)
 
     def __repr__(self):
-        return '<Ontology(ontology_id={}, name={}, namespace={}, data_version={})>'.format(
-            self.ontology_id, self.config.title, self.config.namespace, self.version)
+        return '<Ontology(ontology_id={}, title={}, namespace={}, updated={})>'.format(
+            self.ontology_id, self.config.title, self.config.namespace, self.updated)
 
     def terms(self, filters=None):
+        """ Links to ontology associated terms"""
         client = ListClientMixin('ontologies/' + self.ontology_id, Term)
         return client(filters=filters)
 
     def individuals(self, filters=None):
+        """ Links to ontology associated individuals """
         client = ListClientMixin('ontologies/' + self.ontology_id, Individual)
         return client(filters=filters)
 
     def properties(self, filters=None):
+        """ Links to ontology associated properties"""
         client = ListClientMixin('ontologies/' + self.ontology_id, Property)
         return client(filters=filters)
 
 
-class OntologyLink(OlsDto):
-    self = None
-    terms = None
-    properties = None
-    individual = None
-
-
-class OboXref(OlsDto):
+class OboXref(OLSHelper):
     database = None
     id = None
     description = None
     ur = None
 
 
-class OboCitation(OlsDto):
+class OboCitation(OLSHelper):
     definition = None
     oboXref = None
 
 
-class TermAnnotation(OlsDto):
+class TermAnnotation(OLSHelper):
     database_cross_reference = None
     has_obo_namespace = None
     id = None
+    alternative_term = []
+    definition_source = []
+    editor_preferred_term = []
+    example_of_usage = []
+    term_editor = []
+    term_tracker_item = []
 
 
-class TermsLink(OlsDto):
+class TermsLink(OLSHelper):
     parents = None
     ancestors = None
     hierarchicalParents = None
@@ -156,12 +172,12 @@ class TermsLink(OlsDto):
     graph = None
 
 
-class Term(OlsDto):
+class Term(OLSHelper):
     path = 'terms'
     iri = None
     label = None
     description = None
-    OntoAnnotation = None
+    annotation = None
     synonyms = None
     ontology_name = None
     ontology_prefix = None
@@ -178,52 +194,48 @@ class Term(OlsDto):
     obo_xref = None
     obo_synonym = None
 
+    def __init__(self, **kwargs) -> None:
+        annotation = TermAnnotation(**kwargs.pop("annotation", {}))
+        super().__init__(**kwargs, annotation=annotation)
+
     def __repr__(self):
-        return '<Term(term_id={}, name={}, ontology_id={}, subsets={}, short_form={})>'.format(
+        return '<Term(obo_id={}, name={}, ontology_id={}, subsets={}, short_form={})>'.format(
             self.obo_id, self.label, self.ontology_name, self.in_subset, self.short_form)
 
-    def _load_relation(self, term, relation):
-        terms = self.client.get('/'.join([self.uri(term.ontology_name), 'terms', self.term_uri(term.iri), relation]))
-        if 'terms' in terms.data:
-            # only return ontologies if some exists
-            return []
-        else:
-            # else return a error
-            raise exceptions.BadParameter(
-                helpers.Error(error="Bad Parameter", message="No corresponding {} for {}".format(relation, term.label),
-                              status=400, path='terms', timestamp=time.time()))
+    def _load_relation(self, relation):
+        client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri),
+                                 Term)
+        return client(action=relation)
 
-    def ancestors(self, term):
-        return self._load_relation(term, 'ancestors')
+    def ancestors(self):
+        return self._load_relation('ancestors')
 
-    def parents(self, term):
-        return self._load_relation(term, 'parents')
+    def parents(self):
+        return self._load_relation('parents')
 
-    def hierarchical_parents(self, term):
-        return self._load_relation(term, 'hierarchicalParents')
+    def hierarchical_parents(self):
+        return self._load_relation('hierarchicalParents')
 
-    def hierarchical_ancestors(self, term):
-        return self._load_relation(term, 'hierarchicalAncestors')
+    def hierarchical_ancestors(self):
+        return self._load_relation('hierarchicalAncestors')
 
-    def hierarchical_children(self, term):
-        return self._load_relation(term, 'hierarchicalChildren')
+    def hierarchical_children(self):
+        return self._load_relation('hierarchicalChildren')
 
-    def hierarchical_descendants(self, term):
-        return self._load_relation(term, 'hierarchicalDescendants')
+    def hierarchical_descendants(self):
+        return self._load_relation('hierarchicalDescendants')
 
-    def graphs(self, term):
-        return self._load_relation(term, 'graphs')
+    def graphs(self):
+        return self._load_relation('graphs')
 
-    def jstree(self, term):
-        return self._load_relation(term, 'jstree')
+    def jstree(self):
+        return self._load_relation('jstree')
 
 
 Subset = namedtuple("Subset", ["terms"])
 
-Error = namedtuple("Error", ["error", "message", "status", "path", "timestamp"])
 
-
-class Individual(OlsDto):
+class Individual(OLSHelper):
     path = 'individuals'
     iri = None
     label = None
@@ -242,7 +254,7 @@ class Individual(OlsDto):
             self.label, self.ontology_name, self.iri, self.short_form, self.obo_id)
 
 
-class Property(OlsDto):
+class Property(OLSHelper):
     path = 'properties'
     annotation = None
     synonyms = None
