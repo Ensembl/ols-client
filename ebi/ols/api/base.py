@@ -98,6 +98,7 @@ class DetailClientMixin(BaseClient):
                 return self.elem_class(**document.data[self.elem_class.path][0])
             return self.elem_class(**document.data)
         except ErrorMessage as e:
+            print(e.error)
             raise exceptions.OlsException(e.error)
 
 

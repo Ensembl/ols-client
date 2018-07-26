@@ -46,7 +46,6 @@ class OntologyTestSuite(unittest.TestCase):
         num_pages = 0
         test_item = None
         for ontology in ontologies:
-            print(current, '>', ontology)
             if current == 185:
                 test_item = ontology
             self._checkOntology(ontology)
@@ -62,14 +61,9 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(num_pages, ontologies.pages)
 
     def test_ontology(self):
+        # FIXME add further testing on single ontology data
         ontology = self.client.ontology('aero')
         self._checkOntology(ontology)
-        print(ontology)
-        print(ontology.config)
-
-    def test_failed_ontology(self):
-        with self.assertRaises(exceptions.OlsException):
-            self.client.ontology('non_existing_ontology')
 
     def _checkTerm(self, term):
         self.assertIsInstance(term, helpers.Term)
@@ -155,7 +149,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreaterEqual(terms.pages, 2)
         i = 0
         for term in terms:
-            print(i, '>', term)
+            # print(i, '>', term)
             if i == 85:
                 term_2 = term
             i += 1
@@ -165,11 +159,12 @@ class OntologyTestSuite(unittest.TestCase):
 
     def test_individuals(self):
         self.assertTrue(True)
-        individuals = self.client.individuals()#
+        ontology = self.client.ontology('aero')
+        individuals = ontology.individuals()
         self._checkIndividuals(individuals)
         stop = 0
         for indi in individuals:
             if stop > 500:
                 break
             stop += 1
-            print(stop, indi)
+            # print(stop, indi)
