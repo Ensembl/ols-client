@@ -3,7 +3,7 @@
 from coreapi import Client
 
 import ebi.ols.api.helpers as helpers
-from ols.api.base import decoders, site, DetailClientMixin, ListClientMixin, SearchClientMixin
+from ebi.ols.api.base import decoders, site, DetailClientMixin, ListClientMixin, SearchClientMixin
 
 
 class OlsClient(object):
@@ -12,7 +12,7 @@ class OlsClient(object):
     OLS Client ontologies client
 
     """
-    def __init__(self) -> None:
+    def __init__(self):
         self.client = Client(decoders=decoders)
         document = self.client.get(site)
         self.ontologies = ListClientMixin('ontologies', helpers.Ontology, document)

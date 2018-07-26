@@ -14,7 +14,7 @@ def underscore(value):
     return re.sub('\s+', '_', val)
 
 
-def convert_keys(data) -> OrderedDict:
+def convert_keys(data):
     """
     Convert Json like keyx into Python-like keys
     :param data: a OrderedDict or None
@@ -32,7 +32,7 @@ class OLSHelper(object):
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
     """
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         converted = convert_keys(kwargs)
         for name, value in converted.items():
             self.__setattr__(name, value)
@@ -84,9 +84,9 @@ class OntologyConfig(OLSHelper):
     internal_metadata_properties = []
     skos = None
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         annotations = OntologyAnnotation(**kwargs.pop("annotations", {}))
-        super().__init__(**kwargs, annotations=annotations)
+        super().__init__(annotations=annotations,  **kwargs)
 
     def __repr__(self):
         return '<OntologyConfig(id={}, iri={}, namespace={}, title={}, version={})>'.format(
@@ -111,9 +111,9 @@ class Ontology(OLSHelper):
     config = None
     annotations = {}
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         config = OntologyConfig(**kwargs.pop("config", {}))
-        super().__init__(**kwargs, config=config)
+        super().__init__(config=config, **kwargs)
 
     def __repr__(self):
         return '<Ontology(ontology_id={}, title={}, namespace={}, updated={})>'.format(
@@ -194,9 +194,9 @@ class Term(OLSHelper):
     obo_xref = None
     obo_synonym = None
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         annotation = TermAnnotation(**kwargs.pop("annotation", {}))
-        super().__init__(**kwargs, annotation=annotation)
+        super().__init__(annotation=annotation, **kwargs)
 
     def __repr__(self):
         return '<Term(obo_id={}, name={}, ontology_id={}, subsets={}, short_form={})>'.format(

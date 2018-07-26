@@ -8,8 +8,8 @@ import warnings
 from coreapi import codecs, Client
 from coreapi.exceptions import ErrorMessage
 
-from ols.api import exceptions
-from ols.api.codec import HALCodec
+from ebi.ols.api import exceptions
+from ebi.ols.api.codec import HALCodec
 
 decoders = [HALCodec(), codecs.JSONCodec()]
 site = 'https://www.ebi.ac.uk/ols/api'
@@ -20,7 +20,6 @@ def filters_ontologies(filters):
 
 
 def filters_response(filters):
-
     assert set(filters.keys()).issubset(
         {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
          'local'}) or len(filters) == 0, "Unauthorized filter key"
@@ -84,14 +83,21 @@ class DetailClientMixin(BaseClient):
         self.uri = uri
         self.elem_class = elem_class
 
-    def __call__(self, identifier):
+    def __call__(self, identifier, silent=False):
+        """ Check one element from OLS API accroding to specified identifier
+        In cas API returns multiple element return either:
+        - the one which is defining_ontology (flag True)
+        - The first one if none (Should not happen)
+        """
         identifier_fn = getattr(sys.modules[__name__], 'uri_' + self.elem_class.path)
         path = "/".join([site, self.uri, identifier_fn(identifier)])
         try:
             document = self.client.get(path)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
-                warnings.warn('Multiple values returned for identifier')
+                if not silent:
+                    warnings.warn(
+                        'OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
                 for elem in document.data[self.elem_class.path]:
                     if 'is_defining_ontology' in elem and elem['is_defining_ontology']:
                         return self.elem_class(**elem)
@@ -112,6 +118,10 @@ class ListClientMixin(BaseClient):
         self.index = 0
 
     def __call__(self, filters=None, action=None):
+        """
+        Allow to search for a list ofr helpers, retrieve a list of helpers single object
+
+        """
         if filters is None:
             filters = {}
         params = {'page': 0, 'size': self.page_size}

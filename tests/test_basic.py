@@ -131,11 +131,10 @@ class OntologyTestSuite(unittest.TestCase):
         self._checkTerms(ancestors)
 
         for ancestor in ancestors:
-            print(ancestor)
+            self._checkTerm(ancestor)
         self._checkTerm(term_1)
         # actually load data from OLS
-        term_2 = self.client.term(term_1.iri)
-        print(term_2)
+        term_2 = self.client.term(term_1.iri, silent=False)
         self._checkTerm(term_2)
 
     def test_search(self):
