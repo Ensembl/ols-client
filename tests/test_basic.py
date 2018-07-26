@@ -4,67 +4,68 @@ import unittest
 
 import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
-import ebi.ols.api.lists as lists
 from ebi.ols.api.client import OlsClient
-from ebi.ols.api.exceptions import *
 
 
 class OntologyTestSuite(unittest.TestCase):
     """Basic test cases."""
-    def setUp(self):
-        super().setUp()
-        self.client = OlsClient('https://www.ebi.ac.uk')
-
-    def test_ontologies_list(self):
-        # standard first page
-        ontologies = self.client.ontologies.list(size=50)
-        self.assertEqual(ontologies.page_size, 50)
-        total_pages = ontologies.nb_pages
-        current = 1
-        elms = ontologies.first_page()
-        self._checkOntologies(elms)
-        count = len(elms)
-        while ontologies.has_next_page:
-            # document = self.client.ontologies(page=current)
-            elms = ontologies.next_page()
-            self._checkOntologies(elms)
-            current = current + 1
-            count += len(elms)
-        self.assertEqual(total_pages, current)
-        self.assertEqual(count, ontologies.total)
-        self.assertEqual(current, ontologies.nb_pages)
-        # loop in reverse
-        while ontologies.has_prev_page:
-            ontologies.prev_page()
-            current -= 1
-        self.assertEqual(current, 1)
-
-    def test_ontology(self):
-        ontology = self.client.ontologies.details('co_337')
-        self._checkOntology(ontology)
-        terms = self.client.terms.list(ontology=ontology.ontologyId, size=100)
-        self.assertEqual(terms.page_size, 100)
-        self.assertGreater(terms.nb_pages, 3)
-        # check only the five first pages
-        for i in range(1, 4):
-            terms = self.client.terms.list(ontology=ontology.ontologyId, page=i, size=100)
-            self._checkTerms(terms.current_page())
 
     def _checkOntology(self, ontology):
         self.assertIsInstance(ontology, helpers.Ontology)
-        self.assertIsInstance(ontology.config, helpers.Config)
-        self.assertIsInstance(ontology.config.annotations, helpers.OntoAnnotation)
+        self.assertIsInstance(ontology.config, helpers.OntologyConfig)
+        self.assertIsInstance(ontology.config.annotations, helpers.OntologyAnnotation)
+
+    def _checkProperty(self, property):
+        self.assertIsInstance(property, helpers.Property)
+
+    def _checkProperties(self, properties):
+        self.assertEqual(properties.page_size, 100)
+        [self._checkProperty(property) for property in properties]
+
+    def _checkIndividual(self, individual):
+        self.assertIsInstance(individual, helpers.Individual)
+
+    def _checkIndividuals(self, individuals):
+        self.assertEqual(individuals.page_size, 100)
+        [self._checkIndividual(ind) for ind in individuals]
 
     def _checkOntologies(self, ontologies):
+        self.assertEqual(ontologies.page_size, 100)
         [self._checkOntology(ontology) for ontology in ontologies]
 
-    def test_pagination_error(self):
-        # change page size
-        ontologies = self.client.ontologies.list()
-        pages = ontologies.nb_pages
-        # Pagination error
-        with self.assertRaises(BadParameter):
-            self.client.ontologies.list(page=pages + 10)
+    def setUp(self):
+        super().setUp()
+        self.client = OlsClient()
+
+    def test_ontologies_list(self):
+        # standard first page
+        ontologies = self.client.ontologies()
+        self.assertEqual(ontologies.page_size, 100)
+        total_pages = ontologies.pages
+        current = 0
+        num_pages = 0
+        test_item = None
+        for ontology in ontologies:
+            print(current, '>', ontology)
+            if current == 185:
+                test_item = ontology
+            self._checkOntology(ontology)
+            current = current + 1
+            if current % ontologies.page_size == 0:
+                num_pages += 1
+        item = ontologies[185]
+        self.assertEqual(test_item, item)
+        self.assertEqual(ontologies.index, 85)
+        self.assertEqual(ontologies.page, 1)
+        self.assertEqual(total_pages, num_pages)
+        self.assertEqual(current, len(ontologies))
+        self.assertEqual(num_pages, ontologies.pages)
+
+    def test_ontology(self):
+        ontology = self.client.ontology('aero')
+        self._checkOntology(ontology)
+        print(ontology)
+        print(ontology.config)
 
     def test_failed_ontology(self):
         with self.assertRaises(exceptions.OlsException):
@@ -76,7 +77,8 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertTrue(hasattr(term, 'obo_xref'))
 
     def _checkTerms(self, terms):
-        return [self._checkTerm(term) for term in terms]
+        self.assertEqual(terms.page_size, 100)
+        [self._checkTerm(term) for term in terms]
 
     def test_ontology_terms(self):
         """
@@ -84,11 +86,24 @@ class OntologyTestSuite(unittest.TestCase):
         :return:
         """
         # Search for all terms in ontology, loop over and load Termn accordingly
-        terms = self.client.terms.list("co_337")
-        self.assertEqual(terms.page_size, 20)
-        self.assertEqual(terms.current, 0)
-        checked = self._checkTerms(terms)
-        self.assertEqual(len(checked), len(terms))
+        ontology = self.client.ontology("aero")
+        terms = ontology.terms()
+        self.assertEqual(terms.page_size, 100)
+        self.assertEqual(terms.index, 0)
+        self.assertGreaterEqual(len(terms), ontology.number_of_terms)
+        self._checkTerms(terms)
+
+    def test_ontology_individuals(self):
+        ontology = self.client.ontology("aero")
+        individuals = ontology.individuals()
+        self.assertGreaterEqual(len(individuals), ontology.number_of_individuals)
+        self._checkIndividuals(individuals)
+
+    def test_ontology_properties(self):
+        ontology = self.client.ontology("aero")
+        properties = ontology.properties()
+        self.assertGreaterEqual(len(properties), ontology.number_of_properties)
+        self._checkProperties(properties)
 
     def test_ontology_terms_filters(self):
         """
@@ -96,17 +111,17 @@ class OntologyTestSuite(unittest.TestCase):
         :return:
         """
         filters = {'short_form': 'EFO_0000405'}
-        terms = self.client.terms.list('efo', filters=filters)
+        ontology = self.client.ontology('efo')
+        terms = ontology.terms(filters=filters)
         for term in terms:
             self.assertEqual(term.short_form, 'EFO_0000405')
-
         filters = {'obo_id': 'EFO:0000405'}
-        terms = self.client.terms.list('efo', filters=filters)
+        terms = ontology.terms(filters=filters)
         for term in terms:
             self.assertEqual(term.obo_id, 'EFO:0000405')
 
         filters = {'iri': 'http://www.ebi.ac.uk/efo/EFO_1000838'}
-        terms = self.client.terms.list('efo', filters=filters)
+        terms = ontology.terms(filters=filters)
         for term in terms:
             self.assertEqual(term.short_form, 'EFO_1000838')
             self.assertEqual(term.obo_id, 'EFO:1000838')
@@ -118,18 +133,17 @@ class OntologyTestSuite(unittest.TestCase):
         Should warn that test may be long according to the nnumber of terms involved
         :return:
         """
-        with self.assertWarns(UserWarning):
-            self.client.terms.list(None)
+        term_1 = helpers.Term(ontology_name='cco', iri='http://semanticscience.org/resource/SIO_010043')
+        ancestors = term_1.ancestors()
+        self._checkTerms(ancestors)
 
-    def test_ontology_term(self):
-        terms = self.client.terms.list('lbo')
-        for term in terms.first_page():
-            direct_term = self.client.term('lbo', term.iri)
-            # direct_term = helpers.load_term(direct_term)
-            self._checkTerm(term)
-            self.assertEqual(term, direct_term)
-            ancestors = self.client.terms.ancestors(direct_term)
-            self.assertIsInstance(ancestors, lists.TermList)
+        for ancestor in ancestors:
+            print(ancestor)
+        self._checkTerm(term_1)
+        # actually load data from OLS
+        term_2 = self.client.term(term_1.iri)
+        print(term_2)
+        self._checkTerm(term_2)
 
     def test_search(self):
         """
@@ -137,9 +151,25 @@ class OntologyTestSuite(unittest.TestCase):
         :return:
         """
         # test search engine for terms
-        terms = self.client.search(query='transcriptome', rows=50)
-        self.assertGreaterEqual(terms.nb_pages, 3)
+        terms = self.client.search(query='transcriptome')
+        self.assertGreaterEqual(terms.pages, 2)
+        i = 0
+        for term in terms:
+            print(i, '>', term)
+            if i == 85:
+                term_2 = term
+            i += 1
         self._checkTerms(terms)
+        term_1 = terms[85]
+        self.assertEqual(term_2, term_1)
 
     def test_individuals(self):
         self.assertTrue(True)
+        individuals = self.client.individuals()#
+        self._checkIndividuals(individuals)
+        stop = 0
+        for indi in individuals:
+            if stop > 500:
+                break
+            stop += 1
+            print(stop, indi)
