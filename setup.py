@@ -35,7 +35,7 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=import_requirements(),
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 3 - Alpha",
         "Environment :: Console",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: Apache Software License",
