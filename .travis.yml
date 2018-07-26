@@ -8,3 +8,9 @@ install:
 # command to run tests
 script:
   - nosetests
+notifications:
+  email:
+    on_success: change
+    on_failure: always
+
+  slack: genomes-ebi:ZVN9oaY6GQ7HDSBtmQC5f5PL
