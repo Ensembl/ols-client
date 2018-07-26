@@ -2,7 +2,6 @@
 
 import unittest
 
-import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
 
