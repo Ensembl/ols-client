@@ -71,7 +71,7 @@ class OntologyConfig(OLSHelper):
     version = None
     mailing_list = None
     creators = []
-    annotations = None
+    annotations = {}
     file_location = None
     reasoner_type = None
     obo_slims = None
@@ -85,8 +85,7 @@ class OntologyConfig(OLSHelper):
     skos = None
 
     def __init__(self, **kwargs) -> None:
-        annotations = OntologyAnnotation(**kwargs.pop("annotations", {}))
-        super().__init__(**kwargs, annotations=annotations)
+        super().__init__(**kwargs)
 
     def __repr__(self):
         return '<OntologyConfig(id={}, iri={}, namespace={}, title={}, version={})>'.format(
