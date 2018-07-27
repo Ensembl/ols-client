@@ -12,5 +12,4 @@ notifications:
   email:
     on_success: change
     on_failure: always
-
-  slack: genomes-ebi:ZVN9oaY6GQ7HDSBtmQC5f5PL
+  secure: BkrSPAkOM5aTOpeyO9vZnHdZ0LF1PLk0r2HtcXN2eTMyiHoGXkl6VUjdAL8EkzI4gunW2GProdSIjHpf60WdiEmKAulMdJRI+xyUbuxnY31mwiikS9HYwqmPBbMTf0Mh2pMBngZRFs+gaFZDUMTfLfp+8MQfU1R54yb6hPuVt5I=
