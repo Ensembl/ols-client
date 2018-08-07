@@ -2,6 +2,7 @@
 
 import re
 from collections import namedtuple, OrderedDict
+from typing import Any
 
 import inflection
 from coreapi import Object
@@ -150,7 +151,7 @@ class Ontology(OLSHelper):
     @property
     def namespace(self):
         if self.config.annotations.default_namespace:
-            return self.config.annotations.default_namespace
+            return self.config.annotations.default_namespace[0]
         else:
             return self.config.namespace
 
@@ -212,7 +213,7 @@ class Term(OLSHelper):
     path = 'terms'
     iri = None
     label = None
-    description = None
+    _description = []
     annotation = None
     synonyms = None
     ontology_name = None
@@ -233,39 +234,52 @@ class Term(OLSHelper):
     def __init__(self, **kwargs):
         annotation = TermAnnotation(**kwargs.pop("annotation", {}))
         super().__init__(annotation=annotation, **kwargs)
+        self._relations_types = None
 
     def __repr__(self):
         return '<Term(obo_id={}, name={}, ontology_id={}, namespace={} subsets={}, short_form={})>'.format(
             self.obo_id, self.label, self.ontology_name, self.obo_name_space, self.in_subset, self.short_form)
 
-    def _load_relation(self, relation):
-        client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri),
-                                 Term)
+    @property
+    def relations_types(self):
+        if self._relations_types is not None:
+            return self._relations_types
+        client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
+        return [name for name in convert_keys(client.document.links).keys() if getattr(self, name, None) is None]
+
+    def load_relation(self, relation):
+        client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
         return client(action=relation)
 
+    def children(self):
+        return self.load_relation('children') if self.has_children else []
+
+    def descendants(self):
+        return self.load_relation('descendants')
+
     def ancestors(self):
-        return self._load_relation('ancestors')
+        return self.load_relation('ancestors')
 
     def parents(self):
-        return self._load_relation('parents')
+        return self.load_relation('parents')
 
     def hierarchical_parents(self):
-        return self._load_relation('hierarchicalParents')
+        return self.load_relation('hierarchicalParents')
 
     def hierarchical_ancestors(self):
-        return self._load_relation('hierarchicalAncestors')
+        return self.load_relation('hierarchicalAncestors')
 
     def hierarchical_children(self):
-        return self._load_relation('hierarchicalChildren')
+        return self.load_relation('hierarchicalChildren')
 
     def hierarchical_descendants(self):
-        return self._load_relation('hierarchicalDescendants')
+        return self.load_relation('hierarchicalDescendants')
 
-    def graphs(self):
-        return self._load_relation('graphs')
+    def graph(self):
+        return self.load_relation('graph')
 
     def jstree(self):
-        return self._load_relation('jstree')
+        return self.load_relation('jstree')
 
     @property
     def obo_name_space(self):
@@ -283,6 +297,20 @@ class Term(OLSHelper):
     @obo_id.setter
     def obo_id(self, value):
         self._obo_id = value
+
+    @property
+    def description(self):
+        return self._description[0]
+
+    @description.setter
+    def description(self, value):
+        if value is None:
+            value = [self.label]
+        self._description = value
+
+    @property
+    def subsets(self):
+        return ','.join([subset for subset in sorted(self.in_subset)]) if self.in_subset else ''
 
 
 Subset = namedtuple("Subset", ["terms"])

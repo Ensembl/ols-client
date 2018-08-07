@@ -145,6 +145,15 @@ class OntologyTestSuite(unittest.TestCase):
         term_2 = self.client.term(term_1.iri, silent=False)
         self._checkTerm(term_2)
 
+    def test_dynamic_links(self):
+        term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_0000104')
+        for relation in term.relations_types:
+            related = term.load_relation(relation)
+            self._checkTerms(related)
+        self.assertIn('derives_from', term.relations_types)
+        term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
+        self.assertIn('has_disease_location', term.relations_types)
+
     def test_search(self):
         """
         Need more tests for filtering and selected fields in Results
@@ -158,10 +167,28 @@ class OntologyTestSuite(unittest.TestCase):
             # print(i, '>', term)
             if i == 85:
                 term_2 = term
+                term_3 = self.client.detail(term)
+                self._checkTerm(term_3)
             i += 1
+
         self._checkTerms(terms)
         term_1 = terms[85]
         self.assertEqual(term_2, term_1)
+        # Test search which returns only properties
+        properties = self.client.search(query='goslim_chembl')
+        for prop in properties:
+            self._checkProperty(prop)
+            detailed = self.client.detail(prop)
+            self._checkProperty(detailed)
+
+    def test_mixed_search(self):
+        # Mixed helpers !!!
+        mixed = self.client.search(query='go')
+        i = 0
+        for mix in mixed[0:25]:
+            if i > 500:
+                break
+            print(mix.__class__.__name__)
 
     def test_individuals(self):
         self.assertTrue(True)

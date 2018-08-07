@@ -11,6 +11,7 @@ from coreapi.exceptions import ErrorMessage
 from ebi.ols.api import exceptions
 from ebi.ols.api.codec import HALCodec
 
+
 decoders = [HALCodec(), codecs.JSONCodec()]
 site = 'https://www.ebi.ac.uk/ols/api'
 
@@ -117,10 +118,13 @@ class ListClientMixin(BaseClient):
         self.elem_class = elem_class
         self.index = 0
 
+    def elem_class_instance(self, **data):
+        return self.elem_class(**data)
+
     def __call__(self, filters=None, action=None):
         """
-        Allow to search for a list ofr helpers, retrieve a list of helpers single object
-
+        Allow to search for a list of helpers, retrieve self, wich is now a iterator on the actual list of related
+        helpers
         """
         if filters is None:
             filters = {}
@@ -184,7 +188,7 @@ class ListClientMixin(BaseClient):
             self.index = 0
         else:
             raise StopIteration
-        loaded = self.elem_class(**self.data[self.index])
+        loaded = self.elem_class_instance(**self.data[self.index])
         self.index += 1
         return loaded
 
@@ -200,11 +204,11 @@ class ListClientMixin(BaseClient):
             page = item // self.page_size
             index = item % self.page_size
             if page == self.page:
-                return self.elem_class(**self.data[index])
+                return self.elem_class_instance(**self.data[index])
             else:
                 self.fetch_page(page)
                 self.index = index
-                return self.elem_class(**self.data[index])
+                return self.elem_class_instance(**self.data[index])
 
 
 class SearchClientMixin(ListClientMixin):
@@ -215,11 +219,22 @@ class SearchClientMixin(ListClientMixin):
             raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
                                            'status': 400, 'path': 'search', 'timestamp': time.time()})
         self.query = query  #
-
         return super().__call__(filters)
 
     def __len__(self):
         return self.document[self.path]['numFound']
+
+    def elem_class_instance(self, **kwargs):
+        import ebi.ols.api.helpers as helpers
+        type_item = kwargs.get('type')
+        if type_item == 'property':
+            return helpers.Property(**kwargs)
+        elif type_item == 'individual':
+            return helpers.Individual(**kwargs)
+        elif type_item == 'ontology':
+            return helpers.Ontology(**kwargs)
+        else:
+            return helpers.Term(**kwargs)
 
     @property
     def start(self):
@@ -251,7 +266,7 @@ class SearchClientMixin(ListClientMixin):
         uri += '?q=' + self.query
         filters_uri = ''
         for filter_name, filter_value in params.items():
-            print(filter_name, filter_value)
+            # print(filter_name, filter_value)
             filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
         if 'ontology' in params:
             uri = "q={}&exact=on&" + filters_uri + "&ontology={}".format(self.query, params.get('ontology'))
