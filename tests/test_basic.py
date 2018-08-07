@@ -98,6 +98,14 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreaterEqual(len(properties), ontology.number_of_properties)
         self._checkProperties(properties)
 
+    def test_list_range(self):
+        ontology = self.client.ontology("aero")
+        terms = ontology.terms()
+        slice_terms = terms[3:50]
+        self.assertEqual(47, len(slice_terms))
+        self.assertEqual(slice_terms[0], terms[3])
+        self.assertEqual(slice_terms[len(slice_terms) -1], terms[49])
+
     def test_ontology_terms_filters(self):
         """
         Test ontology terms api filtering options

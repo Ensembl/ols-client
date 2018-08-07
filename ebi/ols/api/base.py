@@ -189,6 +189,8 @@ class ListClientMixin(BaseClient):
         return loaded
 
     def __getitem__(self, item):
+        if isinstance(item, slice):
+            return [self[ii] for ii in range(*item.indices(len(self)))]
         if type(item) is not int:
             raise TypeError("Key indexes must be int, not {}".format(type(item)))
         if item > (len(self) - 1):

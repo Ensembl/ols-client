@@ -27,6 +27,18 @@ def convert_keys(data):
          data.items()})
 
 
+def to_python_value(value):
+    type_value = type(value)
+    if type_value is bool:
+        return value
+    elif type_value is 'str':
+        if value in ('true', 'True', '1'):
+            return True
+        elif value in ('0', 'false', 'False'):
+            return False
+    return value
+
+
 class OLSHelper(object):
     """
     Base Transfer object, mainly assign dynamically received dict keys to object attributes
@@ -35,7 +47,8 @@ class OLSHelper(object):
     def __init__(self, **kwargs):
         converted = convert_keys(kwargs)
         for name, value in converted.items():
-            self.__setattr__(name, value)
+            # print(name, value, to_python_value(value))
+            self.__setattr__(name, to_python_value(value))
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -86,7 +99,7 @@ class OntologyConfig(OLSHelper):
 
     def __init__(self, **kwargs):
         annotations = OntologyAnnotation(**kwargs.pop("annotations", {}))
-        super().__init__(annotations=annotations,  **kwargs)
+        super().__init__(annotations=annotations, **kwargs)
 
     def __repr__(self):
         return '<OntologyConfig(id={}, iri={}, namespace={}, title={}, version={})>'.format(
@@ -104,7 +117,7 @@ class Ontology(OLSHelper):
     updated = None
     status = None
     message = None
-    version = None
+    _version = None
     number_of_terms = None
     number_of_properties = None
     number_of_individuals = None
@@ -134,6 +147,25 @@ class Ontology(OLSHelper):
         client = ListClientMixin('ontologies/' + self.ontology_id, Property)
         return client(filters=filters)
 
+    @property
+    def namespace(self):
+        if self.config.annotations.default_namespace:
+            return self.config.annotations.default_namespace
+        else:
+            return self.config.namespace
+
+    @property
+    def title(self):
+        return self.config.title
+
+    @property
+    def version(self):
+        return self._version if self._version else self.config.version
+
+    @version.setter
+    def version(self, version):
+        self._version = version
+
 
 class OboXref(OLSHelper):
     database = None
@@ -149,14 +181,18 @@ class OboCitation(OLSHelper):
 
 class TermAnnotation(OLSHelper):
     database_cross_reference = None
-    has_obo_namespace = None
-    id = None
+    has_obo_namespace = []
+    id = []
     alternative_term = []
     definition_source = []
     editor_preferred_term = []
     example_of_usage = []
     term_editor = []
     term_tracker_item = []
+
+    def __repr__(self):
+        return '<Term(id={}, has_obo_name_space={}, alternative_term={})>'.format(
+            self.id, self.has_obo_namespace, self.alternative_term, )
 
 
 class TermsLink(OLSHelper):
@@ -182,13 +218,13 @@ class Term(OLSHelper):
     ontology_name = None
     ontology_prefix = None
     ontology_iri = None
-    is_obsolete = None
+    is_obsolete = False
     term_replaced_by = None
-    is_defining_ontology = None
-    has_children = None
-    is_root = None
+    is_defining_ontology = False
+    has_children = False
+    is_root = False
     short_form = None
-    obo_id = None
+    _obo_id = None
     in_subset = None
     obo_definition_citation = None
     obo_xref = None
@@ -199,8 +235,8 @@ class Term(OLSHelper):
         super().__init__(annotation=annotation, **kwargs)
 
     def __repr__(self):
-        return '<Term(obo_id={}, name={}, ontology_id={}, subsets={}, short_form={})>'.format(
-            self.obo_id, self.label, self.ontology_name, self.in_subset, self.short_form)
+        return '<Term(obo_id={}, name={}, ontology_id={}, namespace={} subsets={}, short_form={})>'.format(
+            self.obo_id, self.label, self.ontology_name, self.obo_name_space, self.in_subset, self.short_form)
 
     def _load_relation(self, relation):
         client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri),
@@ -230,6 +266,23 @@ class Term(OLSHelper):
 
     def jstree(self):
         return self._load_relation('jstree')
+
+    @property
+    def obo_name_space(self):
+        # print(self.annotation)
+        if self.annotation.has_obo_namespace:
+            # print('has obo namespace', self.annotation.has_obo_namespace[0])
+            return self.annotation.has_obo_namespace[0]
+        else:
+            return self.ontology_name
+
+    @property
+    def obo_id(self):
+        return self._obo_id or self.annotation.id
+
+    @obo_id.setter
+    def obo_id(self, value):
+        self._obo_id = value
 
 
 Subset = namedtuple("Subset", ["terms"])
