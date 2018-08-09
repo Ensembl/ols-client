@@ -5,7 +5,7 @@ import warnings
 
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
-
+from ebi.ols.api.base import ListClientMixin, DetailClientMixin
 
 def ignore_warnings(test_func):
     def do_test(self, *args, **kwargs):
@@ -18,6 +18,7 @@ def ignore_warnings(test_func):
 
 class OntologyTestSuite(unittest.TestCase):
     """Basic test cases."""
+
 
     def _checkOntology(self, ontology):
         self.assertIsInstance(ontology, helpers.Ontology)
@@ -41,6 +42,9 @@ class OntologyTestSuite(unittest.TestCase):
     def _checkOntologies(self, ontologies):
         self.assertEqual(ontologies.page_size, 100)
         [self._checkOntology(ontology) for ontology in ontologies]
+
+    def _checkMixed(self, helper):
+        return getattr(self, '_check' + helper.__class__.__name__)(helper)
 
     def setUp(self):
         super().setUp()
@@ -160,15 +164,27 @@ class OntologyTestSuite(unittest.TestCase):
             self._checkTerm(ancestor)
         self._checkTerm(term_1)
         # actually load data from OLS
-        term_2 = self.client.term(term_1.iri, silent=False)
-        self._checkTerm(term_2)
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+            # Trigger a warning.
+            term_2 = self.client.term(term_1.iri)
+            self.assertIsInstance(term_2, ListClientMixin)
+            self._checkTerms(term_2)
+
+            # Verify some things
+            self.assertEqual(len(w),1)
+            self.assertTrue(issubclass(w[-1].category, UserWarning))
+
+
 
     @ignore_warnings
     def test_dynamic_links(self):
         term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_0000104')
         for relation in term.relations_types:
             related = term.load_relation(relation)
-            self._checkTerms(related)
+            if related:
+                self._checkTerms(related)
         self.assertIn('derives_from', term.relations_types)
         term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
         self.assertIn('has_disease_location', term.relations_types)
@@ -180,36 +196,36 @@ class OntologyTestSuite(unittest.TestCase):
         :return:
         """
         # test search engine for terms
-        terms = self.client.search(query='transcriptome')
-        self.assertGreaterEqual(terms.pages, 2)
+        results = self.client.search(query='gene_ontology')
+        self.assertGreaterEqual(len(results), 30)
         i = 0
-        for term in terms:
+        for term in results:
             # print(i, '>', term)
-            if i == 85:
+            if i == 15:
                 term_2 = term
                 term_3 = self.client.detail(term)
-                self._checkTerm(term_3)
+                self._checkMixed(term_3)
             i += 1
 
-        self._checkTerms(terms)
-        term_1 = terms[85]
+        self._checkTerms(results)
+        term_1 = results[15]
         self.assertEqual(term_2, term_1)
         # Test search which returns only properties
         properties = self.client.search(query='goslim_chembl')
         for prop in properties:
-            self._checkProperty(prop)
+            self._checkMixed(prop)
             detailed = self.client.detail(prop)
-            self._checkProperty(detailed)
+            self._checkMixed(detailed)
 
-    @ignore_warnings
-    def test_mixed_search(self):
-        # Mixed helpers !!!
+        # Mixed helpers and slice on search
         mixed = self.client.search(query='go')
         i = 0
+        clazz = []
         for mix in mixed[0:25]:
-            if i > 500:
+            if i > 25:
                 break
-            print(mix.__class__.__name__)
+            clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
+        self.assertGreater(len(clazz), 1)
 
     @ignore_warnings
     def test_individuals(self):

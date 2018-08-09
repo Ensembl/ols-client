@@ -100,10 +100,8 @@ class DetailClientMixin(BaseClient):
                 if not silent:
                     warnings.warn(
                         'OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
-                for elem in document.data[self.elem_class.path]:
-                    if 'is_defining_ontology' in elem and elem['is_defining_ontology']:
-                        return self.elem_class(**elem)
-                return self.elem_class(**document.data[self.elem_class.path][0])
+                # return a list instead
+                return ListClientMixin(self.uri, self.elem_class, document)
             return self.elem_class(**document.data)
         except ErrorMessage as e:
             # print(e.error)
@@ -177,7 +175,9 @@ class ListClientMixin(BaseClient):
 
     @property
     def data(self):
-        return self.document.data[self.path]
+        if self.path in self.document:
+            return self.document.data[self.path]
+        return []
 
     def __next__(self):
         if self.index < len(self.data):
@@ -210,6 +210,10 @@ class ListClientMixin(BaseClient):
                 self.fetch_page(page)
                 self.index = index
                 return self.elem_class_instance(**self.data[index])
+
+    def __repr__(self) -> str:
+        return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
+
 
 
 class SearchClientMixin(ListClientMixin):
