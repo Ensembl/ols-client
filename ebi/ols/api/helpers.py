@@ -189,6 +189,7 @@ class OboCitation(OLSHelper):
 class TermAnnotation(OLSHelper):
     database_cross_reference = None
     has_obo_namespace = []
+    has_alternative_id = []
     id = []
     alternative_term = []
     definition_source = []
@@ -198,8 +199,8 @@ class TermAnnotation(OLSHelper):
     term_tracker_item = []
 
     def __repr__(self):
-        return '<Term(id={}, has_obo_name_space={}, alternative_term={})>'.format(
-            self.id, self.has_obo_namespace, self.alternative_term, )
+        return '<Term(id={}, has_obo_name_space={}, alternative_term={}, alt_id={})>'.format(
+            self.id, self.has_obo_namespace, self.alternative_term, self.has_alternative_id)
 
 
 class TermsLink(OLSHelper):
@@ -250,8 +251,10 @@ class Term(OLSHelper):
     def relations_types(self):
         if self._relations_types is None:
             client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
-            self._relations_types = [name for name in client.document.links.keys() if
-                                     name not in ('graph', 'jstree')]
+            self._relations_types = [name for name in convert_keys(client.document.links).keys() if
+                                     name not in ('graph', 'jstree', 'descendants', 'ancestors', 'hierarchical_parents',
+                                                  'hierarchical_ancestors', 'hierarchical_children',
+                                                  'hierarchical_descendants')]
         # print(self._relations_types)
         return self._relations_types
 
@@ -315,6 +318,14 @@ class Term(OLSHelper):
         return ','.join(
             [subset for subset in sorted(self.in_subset, key=lambda s: s.lower())]) if self.in_subset else ''
 
+    @property
+    def accession(self):
+        return self.obo_id
+
+    @property
+    def name(self):
+        return self.label
+
 
 Subset = namedtuple("Subset", ["terms"])
 
@@ -358,3 +369,7 @@ class Property(OLSHelper):
     def __repr__(self):
         return '<Property(label={}, iri={}, ontology_name={}, short_form={}, obo_id={})>'.format(
             self.label, self.ontology_name, self.iri, self.short_form, self.obo_id)
+
+    @property
+    def definition(self):
+        return self.description

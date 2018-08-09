@@ -21,4 +21,5 @@ v1.0.1
 - Shortcuts methods on helpers classes
 - Added __repr__ for lists
 - fixed relations
-- Detail client may return a list of element when retrievind multiple values for identifier    
+- Detail client may return a list of element when retrievind multiple values for identifier, added unique parameter 
+   (default False) to retrieve the defining ontology one, or first found if not - use cautiously    

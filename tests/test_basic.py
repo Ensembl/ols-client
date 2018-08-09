@@ -4,8 +4,9 @@ import unittest
 import warnings
 
 import ebi.ols.api.helpers as helpers
+from ebi.ols.api.base import ListClientMixin
 from ebi.ols.api.client import OlsClient
-from ebi.ols.api.base import ListClientMixin, DetailClientMixin
+
 
 def ignore_warnings(test_func):
     def do_test(self, *args, **kwargs):
@@ -18,7 +19,6 @@ def ignore_warnings(test_func):
 
 class OntologyTestSuite(unittest.TestCase):
     """Basic test cases."""
-
 
     def _checkOntology(self, ontology):
         self.assertIsInstance(ontology, helpers.Ontology)
@@ -158,8 +158,6 @@ class OntologyTestSuite(unittest.TestCase):
         """
         term_1 = helpers.Term(ontology_name='cco', iri='http://semanticscience.org/resource/SIO_010043')
         ancestors = term_1.ancestors()
-        self._checkTerms(ancestors)
-
         for ancestor in ancestors:
             self._checkTerm(ancestor)
         self._checkTerm(term_1)
@@ -173,10 +171,8 @@ class OntologyTestSuite(unittest.TestCase):
             self._checkTerms(term_2)
 
             # Verify some things
-            self.assertEqual(len(w),1)
+            self.assertEqual(len(w), 1)
             self.assertTrue(issubclass(w[-1].category, UserWarning))
-
-
 
     @ignore_warnings
     def test_dynamic_links(self):

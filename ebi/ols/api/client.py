@@ -14,7 +14,7 @@ class OlsClient(object):
     """
     class DetailClient(object):
 
-        def __call__(self, item):
+        def __call__(self, item, **kwargs):
             if isinstance(item, helpers.Property):
                 client = DetailClientMixin('ontologies/{}/properties'.format(item.ontology_name), helpers.Property)
                 return client(item.iri)
@@ -22,8 +22,14 @@ class OlsClient(object):
                 client = DetailClientMixin('ontologies/{}/individuals'.format(item.ontology_name), helpers.Ontology)
             elif isinstance(item, helpers.Ontology):
                 client = DetailClientMixin('ontologies', helpers.Ontology)
-            else:
+            elif isinstance(item, helpers.Term):
                 client = DetailClientMixin('ontologies/{}/terms'.format(item.ontology_name), helpers.Term)
+            else:
+                assert('ontology_name' in kwargs)
+                assert('iri' in kwargs)
+                assert(issubclass(item, helpers.OLSHelper))
+                inst = item(ontology_name=kwargs.get('ontology_name'), iri=kwargs.get('iri'))
+                return self.__call__(inst)
             return client(item.iri)
 
     def __init__(self):

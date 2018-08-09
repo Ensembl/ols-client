@@ -11,7 +11,6 @@ from coreapi.exceptions import ErrorMessage
 from ebi.ols.api import exceptions
 from ebi.ols.api.codec import HALCodec
 
-
 decoders = [HALCodec(), codecs.JSONCodec()]
 site = 'https://www.ebi.ac.uk/ols/api'
 
@@ -84,7 +83,7 @@ class DetailClientMixin(BaseClient):
         self.uri = uri
         self.elem_class = elem_class
 
-    def __call__(self, identifier, silent=False):
+    def __call__(self, identifier, silent=False, unique=False):
         """ Check one element from OLS API accroding to specified identifier
         In cas API returns multiple element return either:
         - the one which is defining_ontology (flag True)
@@ -98,10 +97,14 @@ class DetailClientMixin(BaseClient):
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
-                    warnings.warn(
-                        'OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
+                    warnings.warn('OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
                 # return a list instead
-                return ListClientMixin(self.uri, self.elem_class, document)
+                if not unique:
+                    return ListClientMixin(self.uri, self.elem_class, document)
+                for elem in document.data[self.elem_class.path]:
+                    if 'is_defining_ontology' in elem and elem['is_defining_ontology']:
+                        return self.elem_class(**elem)
+                return None
             return self.elem_class(**document.data)
         except ErrorMessage as e:
             # print(e.error)
@@ -213,7 +216,6 @@ class ListClientMixin(BaseClient):
 
     def __repr__(self) -> str:
         return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
-
 
 
 class SearchClientMixin(ListClientMixin):
