@@ -1,9 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+import warnings
 
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
+
+
+def ignore_warnings(test_func):
+    def do_test(self, *args, **kwargs):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            test_func(self, *args, **kwargs)
+
+    return do_test
 
 
 class OntologyTestSuite(unittest.TestCase):
@@ -36,6 +46,7 @@ class OntologyTestSuite(unittest.TestCase):
         super().setUp()
         self.client = OlsClient()
 
+    @ignore_warnings
     def test_ontologies_list(self):
         # standard first page
         ontologies = self.client.ontologies()
@@ -59,6 +70,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(current, len(ontologies))
         self.assertEqual(num_pages, ontologies.pages)
 
+    @ignore_warnings
     def test_ontology(self):
         # FIXME add further testing on single ontology data
         ontology = self.client.ontology('aero')
@@ -73,6 +85,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(terms.page_size, 100)
         [self._checkTerm(term) for term in terms]
 
+    @ignore_warnings
     def test_ontology_terms(self):
         """
         Tess retrieve ontology terms
@@ -86,26 +99,30 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreaterEqual(len(terms), ontology.number_of_terms)
         self._checkTerms(terms)
 
+    @ignore_warnings
     def test_ontology_individuals(self):
         ontology = self.client.ontology("aero")
         individuals = ontology.individuals()
         self.assertGreaterEqual(len(individuals), ontology.number_of_individuals)
         self._checkIndividuals(individuals)
 
+    @ignore_warnings
     def test_ontology_properties(self):
         ontology = self.client.ontology("aero")
         properties = ontology.properties()
         self.assertGreaterEqual(len(properties), ontology.number_of_properties)
         self._checkProperties(properties)
 
+    @ignore_warnings
     def test_list_range(self):
         ontology = self.client.ontology("aero")
         terms = ontology.terms()
         slice_terms = terms[3:50]
         self.assertEqual(47, len(slice_terms))
         self.assertEqual(slice_terms[0], terms[3])
-        self.assertEqual(slice_terms[len(slice_terms) -1], terms[49])
+        self.assertEqual(slice_terms[len(slice_terms) - 1], terms[49])
 
+    @ignore_warnings
     def test_ontology_terms_filters(self):
         """
         Test ontology terms api filtering options
@@ -128,6 +145,7 @@ class OntologyTestSuite(unittest.TestCase):
             self.assertEqual(term.obo_id, 'EFO:1000838')
             self.assertEqual(term.iri, 'http://www.ebi.ac.uk/efo/EFO_1000838')
 
+    @ignore_warnings
     def test_terms(self):
         """
         Test direct calls to terms entry point.
@@ -145,6 +163,7 @@ class OntologyTestSuite(unittest.TestCase):
         term_2 = self.client.term(term_1.iri, silent=False)
         self._checkTerm(term_2)
 
+    @ignore_warnings
     def test_dynamic_links(self):
         term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_0000104')
         for relation in term.relations_types:
@@ -154,6 +173,7 @@ class OntologyTestSuite(unittest.TestCase):
         term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
         self.assertIn('has_disease_location', term.relations_types)
 
+    @ignore_warnings
     def test_search(self):
         """
         Need more tests for filtering and selected fields in Results
@@ -181,6 +201,7 @@ class OntologyTestSuite(unittest.TestCase):
             detailed = self.client.detail(prop)
             self._checkProperty(detailed)
 
+    @ignore_warnings
     def test_mixed_search(self):
         # Mixed helpers !!!
         mixed = self.client.search(query='go')
@@ -190,6 +211,7 @@ class OntologyTestSuite(unittest.TestCase):
                 break
             print(mix.__class__.__name__)
 
+    @ignore_warnings
     def test_individuals(self):
         self.assertTrue(True)
         ontology = self.client.ontology('aero')

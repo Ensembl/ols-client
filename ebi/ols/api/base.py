@@ -35,7 +35,7 @@ def filters_response(filters):
              'iri'}
         )))
     if 'type' in filters:
-        assert (set(filters['queryFields'].keys().issubset(
+        assert (set(filters['type'].keys().issubset(
             {'class', 'property', 'individual', 'ontology'}
         )))
     if 'exact' in filters:
@@ -94,6 +94,7 @@ class DetailClientMixin(BaseClient):
         path = "/".join([site, self.uri, identifier_fn(identifier)])
         try:
             document = self.client.get(path)
+            # print('current path', self.elem_class, path)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
@@ -105,7 +106,7 @@ class DetailClientMixin(BaseClient):
                 return self.elem_class(**document.data[self.elem_class.path][0])
             return self.elem_class(**document.data)
         except ErrorMessage as e:
-            print(e.error)
+            # print(e.error)
             raise exceptions.OlsException(e.error)
 
 
@@ -268,10 +269,10 @@ class SearchClientMixin(ListClientMixin):
         for filter_name, filter_value in params.items():
             # print(filter_name, filter_value)
             filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
-        if 'ontology' in params:
-            uri = "q={}&exact=on&" + filters_uri + "&ontology={}".format(self.query, params.get('ontology'))
+        filters_uri += "&exact=on"
+        uri += filters_uri + '&rows=100&start={}'.format(start)
         self.base_search_uri = uri
-        uri += '&rows=100&start={}'.format(start)
+        # print('Search uri', uri)
         self.document = self.client.get(uri, format='hal')
 
     def fetch_page(self, page):

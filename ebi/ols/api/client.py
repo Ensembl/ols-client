@@ -16,14 +16,14 @@ class OlsClient(object):
 
         def __call__(self, item):
             if isinstance(item, helpers.Property):
-                client = DetailClientMixin('properties', helpers.Property)
+                client = DetailClientMixin('ontologies/{}/properties'.format(item.ontology_name), helpers.Property)
                 return client(item.iri)
             elif isinstance(item, helpers.Individual):
-                client = DetailClientMixin('individuals', helpers.Ontology)
+                client = DetailClientMixin('ontologies/{}/individuals'.format(item.ontology_name), helpers.Ontology)
             elif isinstance(item, helpers.Ontology):
                 client = DetailClientMixin('ontologies', helpers.Ontology)
             else:
-                client = DetailClientMixin('terms', helpers.Term)
+                client = DetailClientMixin('ontologies/{}/terms'.format(item.ontology_name), helpers.Term)
             return client(item.iri)
 
     def __init__(self):
