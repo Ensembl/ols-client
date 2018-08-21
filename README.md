@@ -1,3 +1,5 @@
+[![Coverage Status](https://coveralls.io/repos/github/Ensembl/ols-client/badge.svg?branch=master)](https://coveralls.io/github/Ensembl/ols-client?branch=master) | [![Build Status](https://travis-ci.org/Ensembl/ols-client.svg?branch=master)](https://travis-ci.org/Ensembl/ols-client)
+
 OLS Ontologies loader 
 =====================
 
