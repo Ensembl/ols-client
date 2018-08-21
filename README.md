@@ -43,3 +43,19 @@ for term in terms:
 term = terms[1254]
 individual = individuals[123]
 # ...
+```
+
+
+Contribute
+----------
+
+Please do ! If you need to run tests locally, add to your virtual env requirements-dev.txt content.None
+
+```bash
+    pip install -r requirements.txt
+    pip install -r requirements-dev.txt
+    
+    # to run tests
+    nosetests --withcoverage
+```
+

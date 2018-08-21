@@ -2,16 +2,23 @@
 
 import unittest
 import warnings
+import os
+import sys
 
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.base import ListClientMixin
 from ebi.ols.api.client import OlsClient
+
+# warnings.simplefilter("ignore", ResourceWarning)
+
+os.environ["PYTHONWARNINGS"] = "ignore"
 
 
 def ignore_warnings(test_func):
     def do_test(self, *args, **kwargs):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ResourceWarning)
+            # warnings.simplefilter("ignore")
             test_func(self, *args, **kwargs)
 
     return do_test
@@ -46,6 +53,7 @@ class OntologyTestSuite(unittest.TestCase):
     def _checkMixed(self, helper):
         return getattr(self, '_check' + helper.__class__.__name__)(helper)
 
+    @ignore_warnings
     def setUp(self):
         super().setUp()
         self.client = OlsClient()
