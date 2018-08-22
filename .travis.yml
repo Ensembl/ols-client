@@ -7,9 +7,12 @@ install:
   - pip install -r requirements.txt
   - pip install nose
   - pip install coverage
+  - pip install python-coveralls
 # command to run tests
 script:
-  - nosetests --with-coverage --cover-erase --cover-package=ebi.ols
+  - nosetests --verbose --with-coverage --cover-package=ebi.ols
+after_success:
+  - coveralls
 notifications:
   email:
     on_success: change
