@@ -16,10 +16,12 @@ site = 'https://www.ebi.ac.uk/ols/api'
 
 
 def filters_ontologies(filters):
+    """ Filters queries for ontologies (in fact none)"""
     return filters or {}
 
 
 def filters_response(filters):
+    """ Filters queries for search"""
     assert set(filters.keys()).issubset(
         {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
          'local'}) or len(filters) == 0, "Unauthorized filter key"
@@ -49,24 +51,29 @@ def filters_response(filters):
 
 
 def filters_terms(filters):
+    """ Check filters for terms queries"""
     assert set(filters.keys()).issubset({'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
     assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
     return filters
 
 
 def uri_ontologies(identifier):
+    """ Get identifier format for ontologies """
     return identifier
 
 
 def uri_terms(identifier):
+    """ Get identifier format for terms (doubled encoded uri) """
     return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
 
 
 def uri_individuals(identifier):
+    """ Get identifier format for individuals (doubled encoded uri) """
     return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
 
 
 def uri_properties(identifier):
+    """ Get identifier format for properties (doubled encoded uri) """
     return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
 
 
@@ -77,8 +84,17 @@ class BaseClient(object):
 
 
 class DetailClientMixin(BaseClient):
+    """
+    Item detailed client, fetch a unique OLS api resource based ont its identifier
+
+    """
 
     def __init__(self, uri, elem_class):
+        """
+        Init from base uri and expected element helper class
+        :param uri: relative uri to base OLS url
+        :param elem_class: helper class expected
+        """
         super().__init__()
         self.uri = uri
         self.elem_class = elem_class
@@ -112,15 +128,32 @@ class DetailClientMixin(BaseClient):
 
 
 class ListClientMixin(BaseClient):
+    """
+    List client retrieve items (ontologies, terms, individuals, properties) as list-like object from OLS REST api.
+
+    TODO: implement __getslice__
+    TODO: review error management
+    """
     page_size = 100
 
     def __init__(self, uri, elem_class, document=None):
+        """
+        Initialize a list object
+        :param uri: the OLS api base source uri
+        :param elem_class: the expected class items objects
+        :param: coreapi.Document from api (used to avoid double call to api if already loade elsewhere
+        """
         super().__init__()
         self.document = document or self.client.get('/'.join([site, uri]), force_codec='hal')
         self.elem_class = elem_class
         self.index = 0
 
     def elem_class_instance(self, **data):
+        """
+        Get an item object from dedicated class expected object
+        :param data:
+        :return:
+        """
         return self.elem_class(**data)
 
     def __call__(self, filters=None, action=None):
@@ -149,40 +182,79 @@ class ListClientMixin(BaseClient):
         return self
 
     def fetch_document(self, path, params=None):
+        """
+        Fetch coreapi.Document object fro specified path (based on current loaded document fro base uri
+        :param path: related path
+        :param params: call params / filters
+        :return Document: fetched document from api
+        """
         if params is None:
             params = {}
         self.document = self.client.action(self.document, [path], params=params, validate=False)
+        return self.document
 
     def fetch_page(self, page):
+        """
+        Fetch document page from paginated results
+        :param page: expected page
+        :return Document: fetched page document fro api
+        """
         self.document = self.client.get(
             '/'.join([site, self.path]) + '?page={}&size={}'.format(page, self.page_size),
             force_codec='hal')
+        return self.document
 
     def __len__(self):
+        """
+        Current list full length (all elements)
+        :return: int
+        """
         return self.document['page']['totalElements']
 
     def __iter__(self):
+        """
+        Initialize self contained iterator
+        :return:
+        """
         return self
 
     @property
     def path(self):
+        """ List elements in HAL documents are expected to be inside a path
+        ;:return the expected path from item element class
+        """
         return self.elem_class.path
 
     @property
     def page(self):
+        """
+        Current page
+        :return: int
+        """
         return self.document['page']['number']
 
     @property
     def pages(self):
+        """
+        Total pages from last api request
+        :return: int
+        """
         return self.document['page']['totalPages'] - 1
 
     @property
     def data(self):
+        """ Current object pages elements list
+        :return list
+        """
         if self.path in self.document:
             return self.document.data[self.path]
         return []
 
     def __next__(self):
+        """
+        Next element in current list, if outbound current pages items, load next page
+        :return: list
+        """
         if self.index < len(self.data):
             # Simply return current indexed item
             pass
@@ -197,12 +269,16 @@ class ListClientMixin(BaseClient):
         return loaded
 
     def __getitem__(self, item):
+        """
+        Return indexed item, if exists
+        :param item: int the current index to get
+        :return: item class object
+        """
         if isinstance(item, slice):
             return [self[ii] for ii in range(*item.indices(len(self)))]
         if type(item) is not int:
             raise TypeError("Key indexes must be int, not {}".format(type(item)))
         if item > (len(self) - 1):
-            # TODO relace with proper ArrayError Text
             raise KeyError("No corresponding key {}".format(item))
         else:
             page = item // self.page_size
@@ -215,13 +291,27 @@ class ListClientMixin(BaseClient):
                 return self.elem_class_instance(**self.data[index])
 
     def __repr__(self) -> str:
+        """ String repr of list
+        :return str
+        """
         return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
 
 
 class SearchClientMixin(ListClientMixin):
+    """
+    Mixed items classes list, retrieved from search endpoint in OLS REST api
+
+    """
     base_search_uri = ''
+    path = 'response'
 
     def __call__(self, filters=None, query=None):
+        """
+
+        :param filters: filters to apply to search
+        :param query: searched string
+        :return: a list of mixed items (individuals, ontologies, terms, properties)
+        """
         if query is None:
             raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
                                            'status': 400, 'path': 'search', 'timestamp': time.time()})
@@ -232,6 +322,11 @@ class SearchClientMixin(ListClientMixin):
         return self.document[self.path]['numFound']
 
     def elem_class_instance(self, **kwargs):
+        """
+        Search OLS api returns mixed types elements, get current element class to return accordingly
+        :param kwargs: type items
+        :return: mixed
+        """
         import ebi.ols.api.helpers as helpers
         type_item = kwargs.get('type')
         if type_item == 'property':
@@ -245,25 +340,37 @@ class SearchClientMixin(ListClientMixin):
 
     @property
     def start(self):
+        """ First element index in full list
+        """
         return self.document[self.path]['start']
 
     @property
-    def path(self):
-        return 'response'
-
-    @property
     def page(self):
+        """ Calculate current page, not returned directly from api
+        :return int
+        """
         return math.floor(self.start / self.page_size) + 1
 
     @property
     def pages(self):
+        """ Calculate and return search pages number
+        :return int
+        """
         return math.ceil(len(self) / self.page_size)
 
     @property
     def data(self):
+        """ Actual list elements from returned search elements
+        """
         return self.document.data[self.path]['docs']
 
     def fetch_document(self, path, params=None):
+        """
+        Fetch current search elements
+        :param path: the uri relative path
+        :param params: search params
+        :return: Document
+        """
         if params is None:
             params = {}
         params.pop('page', 0)
@@ -280,7 +387,12 @@ class SearchClientMixin(ListClientMixin):
         self.base_search_uri = uri
         # print('Search uri', uri)
         self.document = self.client.get(uri, format='hal')
+        return self.document
 
     def fetch_page(self, page):
+        """ Fetch OLS api search page
+        :return Document
+        """
         uri = self.base_search_uri + '&rows=100&start={}'.format(page * self.page_size)
         self.document = self.client.get(uri, format='hal')
+        return self.document

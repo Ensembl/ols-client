@@ -201,7 +201,7 @@ class OntologyTestSuite(unittest.TestCase):
         """
         # test search engine for terms
         results = self.client.search(query='gene_ontology')
-        self.assertGreaterEqual(len(results), 30)
+        self.assertGreaterEqual(len(results), 15)
         i = 0
         for term in results:
             # print(i, '>', term)
