@@ -298,7 +298,6 @@ class Term(OLSHelper):
     def obo_name_space(self):
         # print(self.annotation)
         if self.annotation.has_obo_namespace:
-            # print('has obo namespace', self.annotation.has_obo_namespace[0])
             return self.annotation.has_obo_namespace[0]
         else:
             return self.ontology_name
