@@ -8,8 +8,7 @@ v1.0.0
     - Term list / details
     - Individuals list / details
     - Properties list / details
-    - Basic Term search
-    
+    - Basic Term search 
     
 v1.0.1
 ------
@@ -28,6 +27,6 @@ v1.0.2
 ------
 - Updated documentation for BaseClient
 - Updated some tests
-- Added __get_slice__ to ListClient
-- 
+- Added slice capability to ListClient
+- Removed __main__ from Client
     

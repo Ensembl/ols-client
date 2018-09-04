@@ -149,10 +149,7 @@ class Ontology(OLSHelper):
 
     @property
     def namespace(self):
-        if self.config.annotations.default_namespace:
-            return self.config.annotations.default_namespace[0]
-        else:
-            return self.config.namespace
+        return self.config.namespace
 
     @property
     def title(self):
@@ -253,9 +250,8 @@ class Term(OLSHelper):
             client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
             self._relations_types = [name for name in convert_keys(client.document.links).keys() if
                                      name not in ('graph', 'jstree', 'descendants', 'ancestors', 'hierarchical_parents',
-                                                  'hierarchical_ancestors', 'hierarchical_children',
+                                                  'hierarchical_ancestors', 'hierarchical_children', 'parents',
                                                   'hierarchical_descendants')]
-        # print(self._relations_types)
         return self._relations_types
 
     def load_relation(self, relation):

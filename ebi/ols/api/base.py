@@ -290,11 +290,12 @@ class ListClientMixin(BaseClient):
                 self.index = index
                 return self.elem_class_instance(**self.data[index])
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         """ String repr of list
         :return str
         """
         return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
+
 
 
 class SearchClientMixin(ListClientMixin):

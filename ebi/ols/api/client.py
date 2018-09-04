@@ -41,8 +41,3 @@ class OlsClient(object):
         self.term = DetailClientMixin('terms', helpers.Term)
         self.search = SearchClientMixin('search', helpers.Term, document)
         self.detail = self.DetailClient()
-
-
-if __name__ == "__main__":
-    # TODO add arg parse and associated method calls
-    print('Coming soon')
