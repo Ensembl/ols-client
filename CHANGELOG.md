@@ -29,4 +29,5 @@ v1.0.2
 - Updated some tests
 - Added slice capability to ListClient
 - Removed __main__ from Client
-- Corrected relation types loading    
+- Corrected relation types loading
+- Changed apache LICENSE - Added NOTICE 
