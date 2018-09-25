@@ -3,15 +3,17 @@ CHANGELOG
 
 v1.0.0
 ------
+
 - Initial version
-    - Ontologies list / details
-    - Term list / details
-    - Individuals list / details
-    - Properties list / details
-    - Basic Term search 
+- Ontologies list / details
+- Term list / details
+- Individuals list / details
+- Properties list / details
+- Basic Term search 
     
 v1.0.1
 ------
+
 - Added Term links exploring (Term defined relations)
 - Added slice capability on lists
 - Corrected github link
@@ -25,9 +27,10 @@ v1.0.1
    
 v1.0.2
 ------
+
 - Updated documentation for BaseClient
 - Updated some tests
 - Added slice capability to ListClient
 - Removed __main__ from Client
 - Corrected relation types loading
-- Changed apache LICENSE - Added NOTICE 
+- Updated Apache LICENSE copyright - Added NOTICE reference in code
