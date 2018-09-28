@@ -1,5 +1,17 @@
 # -*- coding: utf-8 -*-
-
+"""
+.. See the NOTICE file distributed with this work for additional information
+   regarding copyright ownership.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+"""
 import re
 from collections import namedtuple, OrderedDict
 
@@ -149,10 +161,7 @@ class Ontology(OLSHelper):
 
     @property
     def namespace(self):
-        if self.config.annotations.default_namespace:
-            return self.config.annotations.default_namespace[0]
-        else:
-            return self.config.namespace
+        return self.config.namespace
 
     @property
     def title(self):
@@ -251,18 +260,15 @@ class Term(OLSHelper):
     def relations_types(self):
         if self._relations_types is None:
             client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
-            self._relations_types = [name for name in convert_keys(client.document.links).keys() if
-                                     name not in ('graph', 'jstree', 'descendants', 'ancestors', 'hierarchical_parents',
-                                                  'hierarchical_ancestors', 'hierarchical_children',
-                                                  'hierarchical_descendants')]
-        # print(self._relations_types)
+            self._relations_types = [name for name in client.document.links.keys() if
+                                     name not in ('graph', 'jstree', 'descendants', 'ancestors', 'hierarchicalParents',
+                                                  'hierarchicalAncestors', 'hierarchicalChildren',
+                                                  'hierarchicalDescendants')]
         return self._relations_types
 
     def load_relation(self, relation):
-        if relation in self.relations_types:
-            client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
-            return client(action=relation)
-        return []
+        client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
+        return client(action=relation)
 
     def children(self):
         return self.load_relation('children') if self.has_children else []
@@ -298,7 +304,6 @@ class Term(OLSHelper):
     def obo_name_space(self):
         # print(self.annotation)
         if self.annotation.has_obo_namespace:
-            # print('has obo namespace', self.annotation.has_obo_namespace[0])
             return self.annotation.has_obo_namespace[0]
         else:
             return self.ontology_name
