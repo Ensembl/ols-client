@@ -45,18 +45,18 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertIsInstance(property, helpers.Property)
 
     def _checkProperties(self, properties):
-        self.assertEqual(properties.page_size, 100)
+        self.assertEqual(properties.page_size, 1000)
         [self._checkProperty(property) for property in properties]
 
     def _checkIndividual(self, individual):
         self.assertIsInstance(individual, helpers.Individual)
 
     def _checkIndividuals(self, individuals):
-        self.assertEqual(individuals.page_size, 100)
+        self.assertEqual(individuals.page_size, 1000)
         [self._checkIndividual(ind) for ind in individuals]
 
     def _checkOntologies(self, ontologies):
-        self.assertEqual(ontologies.page_size, 100)
+        self.assertEqual(ontologies.page_size, 1000)
         [self._checkOntology(ontology) for ontology in ontologies]
 
     def _checkMixed(self, helper):
@@ -71,7 +71,7 @@ class OntologyTestSuite(unittest.TestCase):
     def test_ontologies_list(self):
         # standard first page
         ontologies = self.client.ontologies()
-        self.assertEqual(ontologies.page_size, 100)
+        self.assertEqual(ontologies.page_size, 1000)
         total_pages = ontologies.pages
         current = 0
         num_pages = 0
@@ -85,8 +85,7 @@ class OntologyTestSuite(unittest.TestCase):
                 num_pages += 1
         item = ontologies[185]
         self.assertEqual(test_item, item)
-        self.assertEqual(ontologies.index, 85)
-        self.assertEqual(ontologies.page, 1)
+        self.assertEqual(ontologies.page, 0)
         self.assertEqual(total_pages, num_pages)
         self.assertEqual(current, len(ontologies))
         self.assertEqual(num_pages, ontologies.pages)
@@ -103,7 +102,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertTrue(hasattr(term, 'obo_xref'))
 
     def _checkTerms(self, terms):
-        self.assertEqual(terms.page_size, 100)
+        self.assertEqual(terms.page_size, 1000)
         [self._checkTerm(term) for term in terms]
 
     @ignore_warnings
@@ -115,7 +114,7 @@ class OntologyTestSuite(unittest.TestCase):
         # Search for all terms in ontology, loop over and load Termn accordingly
         ontology = self.client.ontology("aero")
         terms = ontology.terms()
-        self.assertEqual(terms.page_size, 100)
+        self.assertEqual(terms.page_size, 1000)
         self.assertEqual(terms.index, 0)
         self.assertGreaterEqual(len(terms), ontology.number_of_terms)
         self._checkTerms(terms)
