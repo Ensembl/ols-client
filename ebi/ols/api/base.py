@@ -147,7 +147,7 @@ class ListClientMixin(BaseClient):
     TODO: implement __getslice__
     TODO: review error management
     """
-    page_size = 100
+    page_size = 1000
 
     def __init__(self, uri, elem_class, document=None):
         """
