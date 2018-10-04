@@ -10,7 +10,7 @@ install:
   - pip install python-coveralls
 # command to run tests
 script:
-  - nosetests --verbose --with-coverage --cover-package=ebi.ols
+  - nosetests tests.test_basic --verbose --with-coverage --cover-package=ebi.ols
 after_success:
   - coveralls
 notifications:

@@ -34,3 +34,8 @@ v1.0.2
 - Removed __main__ from Client
 - Corrected relation types loading
 - Updated Apache LICENSE copyright - Added NOTICE reference in code
+
+v1.03
+-----
+
+- Changes page size to 1000 by default
