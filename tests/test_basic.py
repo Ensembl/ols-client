@@ -251,3 +251,24 @@ class OntologyTestSuite(unittest.TestCase):
                 break
             stop += 1
             # print(stop, indi)
+
+
+    @ignore_warnings
+    def testRangeTerms(self):
+        ontology = self.client.ontology('go')
+        terms = ontology.terms()
+        sliced = terms[10258:10630]
+        self.assertEqual(len(sliced), 372)
+        i = 10258
+        for term in sliced:
+            self.assertEqual(term.accession, terms[i].accession)
+            i += 1
+
+        # test now with page reload page inside
+        sliced = terms[8567:10630]
+        self.assertEqual(len(sliced), 2063)
+        i = 8567
+        for term in sliced:
+            self.assertEqual(term.accession, terms[i].accession)
+            i += 1
+
