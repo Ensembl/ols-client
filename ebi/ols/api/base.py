@@ -218,7 +218,6 @@ class ListClientMixin(BaseClient):
         self.document = self.client.get(
             '/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size),
             force_codec='hal')
-        print('/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size))
         return self.document
 
     def __len__(self):
@@ -406,16 +405,17 @@ class SearchClientMixin(ListClientMixin):
             # print(filter_name, filter_value)
             filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
         filters_uri += "&exact=on"
-        uri += filters_uri + '&rows=100&start={}'.format(start)
+        uri += filters_uri
         self.base_search_uri = uri
-        # print('Search uri', uri)
-        self.document = self.client.get(uri, format='hal')
+        final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
+        self.document = self.client.get(final_uri, format='hal')
         return self.document
 
     def fetch_page(self, page):
         """ Fetch OLS api search page
         :return Document
         """
-        uri = self.base_search_uri + '&rows=100&start={}'.format(page * self.page_size)
+        uri = self.base_search_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
         self.document = self.client.get(uri, format='hal')
         return self.document
+
