@@ -12,12 +12,12 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
-import math
 import sys
-import time
 import urllib.parse
 import warnings
 
+import math
+import time
 from coreapi import codecs, Client
 from coreapi.exceptions import ErrorMessage
 
@@ -158,7 +158,10 @@ class ListClientMixin(BaseClient):
         """
         super().__init__()
         self.document = document or self.client.get('/'.join([site, uri]), force_codec='hal')
+        # print(self.document)
         self.elem_class = elem_class
+        self.base_uri = self.path if document is not None else uri
+        # print('base uri set to ', self.base_uri)
         self.index = 0
 
     def elem_class_instance(self, **data):
@@ -213,7 +216,7 @@ class ListClientMixin(BaseClient):
         :return Document: fetched page document fro api
         """
         self.document = self.client.get(
-            '/'.join([site, self.path]) + '?page={}&size={}'.format(page, self.page_size),
+            '/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size),
             force_codec='hal')
         return self.document
 
@@ -288,7 +291,11 @@ class ListClientMixin(BaseClient):
         :return: item class object
         """
         if isinstance(item, slice):
-            return [self[ii] for ii in range(*item.indices(len(self)))]
+            page = item.start // self.page_size
+            self.fetch_page(page)
+            self.index = item.start
+            return [self[ii] for ii in
+                    range(self.index, self.index + max(item.start - item.stop, item.stop - item.start))]
         if type(item) is not int:
             raise TypeError("Key indexes must be int, not {}".format(type(item)))
         if item > (len(self) - 1):
@@ -297,8 +304,10 @@ class ListClientMixin(BaseClient):
             page = item // self.page_size
             index = item % self.page_size
             if page == self.page:
+                # print('still in range ')
                 return self.elem_class_instance(**self.data[index])
             else:
+                # print('out of range, fetch')
                 self.fetch_page(page)
                 self.index = index
                 return self.elem_class_instance(**self.data[index])
@@ -308,7 +317,6 @@ class ListClientMixin(BaseClient):
         :return str
         """
         return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
-
 
 
 class SearchClientMixin(ListClientMixin):
@@ -397,16 +405,17 @@ class SearchClientMixin(ListClientMixin):
             # print(filter_name, filter_value)
             filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
         filters_uri += "&exact=on"
-        uri += filters_uri + '&rows=100&start={}'.format(start)
+        uri += filters_uri
         self.base_search_uri = uri
-        # print('Search uri', uri)
-        self.document = self.client.get(uri, format='hal')
+        final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
+        self.document = self.client.get(final_uri, format='hal')
         return self.document
 
     def fetch_page(self, page):
         """ Fetch OLS api search page
         :return Document
         """
-        uri = self.base_search_uri + '&rows=100&start={}'.format(page * self.page_size)
+        uri = self.base_search_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
         self.document = self.client.get(uri, format='hal')
         return self.document
+

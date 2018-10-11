@@ -212,15 +212,14 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreaterEqual(len(results), 15)
         i = 0
         for term in results:
-            # print(i, '>', term)
-            if i == 15:
+            if i == 14:
                 term_2 = term
                 term_3 = self.client.detail(term)
                 self._checkMixed(term_3)
             i += 1
 
         self._checkTerms(results)
-        term_1 = results[15]
+        term_1 = results[14]
         self.assertEqual(term_2, term_1)
         # Test search which returns only properties
         properties = self.client.search(query='goslim_chembl')
@@ -233,7 +232,7 @@ class OntologyTestSuite(unittest.TestCase):
         mixed = self.client.search(query='go')
         i = 0
         clazz = []
-        for mix in mixed[0:25]:
+        for mix in mixed:
             if i > 25:
                 break
             clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
@@ -251,3 +250,24 @@ class OntologyTestSuite(unittest.TestCase):
                 break
             stop += 1
             # print(stop, indi)
+
+
+    @ignore_warnings
+    def testRangeTerms(self):
+        ontology = self.client.ontology('go')
+        terms = ontology.terms()
+        sliced = terms[10258:10630]
+        self.assertEqual(len(sliced), 372)
+        i = 10258
+        for term in sliced:
+            self.assertEqual(term.accession, terms[i].accession)
+            i += 1
+
+        # test now with page reload page inside
+        sliced = terms[8567:10630]
+        self.assertEqual(len(sliced), 2063)
+        i = 8567
+        for term in sliced:
+            self.assertEqual(term.accession, terms[i].accession)
+            i += 1
+
