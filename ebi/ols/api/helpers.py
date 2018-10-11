@@ -373,7 +373,7 @@ class Property(OLSHelper):
 
     def __repr__(self):
         return '<Property(label={}, iri={}, ontology_name={}, short_form={}, obo_id={})>'.format(
-            self.label, self.ontology_name, self.iri, self.short_form, self.obo_id)
+            self.label, self.iri, self.ontology_name, self.short_form, self.obo_id)
 
     @property
     def definition(self):
