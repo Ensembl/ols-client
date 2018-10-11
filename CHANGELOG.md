@@ -44,3 +44,9 @@ v1.0.4
 ------
 
 - Fixed: bug in getting sliced data (wrong base uri)
+
+v1.0.5
+------
+
+- Fixed wrong str representation for Property
+- Corrected Detail client to use pagination while searching item unique and list returned
