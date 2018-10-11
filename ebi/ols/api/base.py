@@ -12,12 +12,12 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
+import math
 import sys
+import time
 import urllib.parse
 import warnings
 
-import math
-import time
 from coreapi import codecs, Client
 from coreapi.exceptions import ErrorMessage
 
@@ -128,11 +128,13 @@ class DetailClientMixin(BaseClient):
                 if not silent:
                     warnings.warn('OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
                 # return a list instead
+                elems = ListClientMixin(self.uri, self.elem_class, document)
                 if not unique:
-                    return ListClientMixin(self.uri, self.elem_class, document)
-                for elem in document.data[self.elem_class.path]:
-                    if 'is_defining_ontology' in elem and elem['is_defining_ontology']:
-                        return self.elem_class(**elem)
+                    return elems
+                else:
+                    for elem in elems:
+                        if elem.is_defining_ontology:
+                            return elem
                 return None
             return self.elem_class(**document.data)
         except ErrorMessage as e:
@@ -418,4 +420,3 @@ class SearchClientMixin(ListClientMixin):
         uri = self.base_search_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
         self.document = self.client.get(uri, format='hal')
         return self.document
-
