@@ -12,16 +12,22 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
+import os
 import unittest
 import warnings
-import os
-import sys
+import logging
 
 import ebi.ols.api.helpers as helpers
+
 from ebi.ols.api.base import ListClientMixin
 from ebi.ols.api.client import OlsClient
 
 os.environ["PYTHONWARNINGS"] = "ignore"
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
+                    datefmt='%m-%d %H:%M:%S')
+
+logger = logging.getLogger(__name__)
 
 
 def ignore_warnings(test_func):
@@ -45,18 +51,18 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertIsInstance(property, helpers.Property)
 
     def _checkProperties(self, properties):
-        self.assertEqual(properties.page_size, 1000)
+        self.assertEqual(properties.page_size, ListClientMixin.page_size)
         [self._checkProperty(property) for property in properties]
 
     def _checkIndividual(self, individual):
         self.assertIsInstance(individual, helpers.Individual)
 
     def _checkIndividuals(self, individuals):
-        self.assertEqual(individuals.page_size, 1000)
+        self.assertEqual(individuals.page_size, ListClientMixin.page_size)
         [self._checkIndividual(ind) for ind in individuals]
 
     def _checkOntologies(self, ontologies):
-        self.assertEqual(ontologies.page_size, 1000)
+        self.assertEqual(ontologies.page_size, ListClientMixin.page_size)
         [self._checkOntology(ontology) for ontology in ontologies]
 
     def _checkMixed(self, helper):
@@ -71,7 +77,7 @@ class OntologyTestSuite(unittest.TestCase):
     def test_ontologies_list(self):
         # standard first page
         ontologies = self.client.ontologies()
-        self.assertEqual(ontologies.page_size, 1000)
+        self.assertEqual(ontologies.page_size, ListClientMixin.page_size)
         total_pages = ontologies.pages
         current = 0
         num_pages = 0
@@ -102,7 +108,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertTrue(hasattr(term, 'obo_xref'))
 
     def _checkTerms(self, terms):
-        self.assertEqual(terms.page_size, 1000)
+        self.assertEqual(terms.page_size, ListClientMixin.page_size)
         [self._checkTerm(term) for term in terms]
 
     @ignore_warnings
@@ -114,7 +120,7 @@ class OntologyTestSuite(unittest.TestCase):
         # Search for all terms in ontology, loop over and load Termn accordingly
         ontology = self.client.ontology("aero")
         terms = ontology.terms()
-        self.assertEqual(terms.page_size, 1000)
+        self.assertEqual(terms.page_size, ListClientMixin.page_size)
         self.assertEqual(terms.index, 0)
         self.assertGreaterEqual(len(terms), ontology.number_of_terms)
         self._checkTerms(terms)
@@ -137,9 +143,10 @@ class OntologyTestSuite(unittest.TestCase):
     def test_list_range(self):
         ontology = self.client.ontology("aero")
         terms = ontology.terms()
+        term_3 = terms[3]
         slice_terms = terms[3:50]
         self.assertEqual(47, len(slice_terms))
-        self.assertEqual(slice_terms[0], terms[3])
+        self.assertEqual(slice_terms[0], term_3)
         self.assertEqual(slice_terms[len(slice_terms) - 1], terms[49])
 
     @ignore_warnings
@@ -251,9 +258,8 @@ class OntologyTestSuite(unittest.TestCase):
             stop += 1
             # print(stop, indi)
 
-
     @ignore_warnings
-    def testRangeTerms(self):
+    def test_range(self):
         ontology = self.client.ontology('go')
         terms = ontology.terms()
         sliced = terms[10258:10630]
@@ -270,4 +276,3 @@ class OntologyTestSuite(unittest.TestCase):
         for term in sliced:
             self.assertEqual(term.accession, terms[i].accession)
             i += 1
-

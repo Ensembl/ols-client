@@ -260,10 +260,7 @@ class Term(OLSHelper):
     def relations_types(self):
         if self._relations_types is None:
             client = ListClientMixin('ontologies/' + self.ontology_name + '/terms/' + uri_terms(self.iri), Term)
-            self._relations_types = [name for name in client.document.links.keys() if
-                                     name not in ('graph', 'jstree', 'descendants', 'ancestors', 'hierarchicalParents',
-                                                  'hierarchicalAncestors', 'hierarchicalChildren',
-                                                  'hierarchicalDescendants')]
+            self._relations_types = [name for name in client.document.links.keys() if name not in ('graph', 'jstree')]
         return self._relations_types
 
     def load_relation(self, relation):

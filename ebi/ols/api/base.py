@@ -17,6 +17,7 @@ import sys
 import time
 import urllib.parse
 import warnings
+import logging
 
 from coreapi import codecs, Client
 from coreapi.exceptions import ErrorMessage
@@ -27,6 +28,7 @@ from ebi.ols.api.codec import HALCodec
 decoders = [HALCodec(), codecs.JSONCodec()]
 site = 'https://www.ebi.ac.uk/ols/api'
 
+logger = logging.getLogger(__name__)
 
 def filters_ontologies(filters):
     """ Filters queries for ontologies (in fact none)"""
@@ -165,6 +167,7 @@ class ListClientMixin(BaseClient):
         self.base_uri = self.path if document is not None else uri
         # print('base uri set to ', self.base_uri)
         self.index = 0
+        self._max = None
 
     def elem_class_instance(self, **data):
         """
@@ -208,6 +211,7 @@ class ListClientMixin(BaseClient):
         """
         if params is None:
             params = {}
+        logger.debug('Action on document %s/%s (%s)', self.document.url, path, params)
         self.document = self.client.action(self.document, [path], params=params, validate=False)
         return self.document
 
@@ -217,9 +221,9 @@ class ListClientMixin(BaseClient):
         :param page: expected page
         :return Document: fetched page document fro api
         """
-        self.document = self.client.get(
-            '/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size),
-            force_codec='hal')
+        uri = '/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
+        logger.debug('Fetch page %s ', uri)
+        self.document = self.client.get(uri, force_codec='hal')
         return self.document
 
     def __len__(self):
@@ -227,6 +231,8 @@ class ListClientMixin(BaseClient):
         Current list full length (all elements)
         :return: int
         """
+        if self._max:
+            return self._max
         return self.document['page']['totalElements']
 
     def __iter__(self):
@@ -293,9 +299,15 @@ class ListClientMixin(BaseClient):
         :return: item class object
         """
         if isinstance(item, slice):
+            logger.debug('sliced element [%s %s]', item.start, item.stop)
+            if item.start > (len(self) - 1) or item.stop > (len(self) - 1):
+                raise KeyError('Out of bound indexes')
             page = item.start // self.page_size
-            self.fetch_page(page)
-            self.index = item.start
+            if page != self.page:
+                self.fetch_page(page)
+            self.index = item.start - (page * self.page_size)
+            self._max = item.stop - item.start + 1 + self.index
+            self.sliced = True
             return [self[ii] for ii in
                     range(self.index, self.index + max(item.start - item.stop, item.stop - item.start))]
         if type(item) is not int:
@@ -306,7 +318,7 @@ class ListClientMixin(BaseClient):
             page = item // self.page_size
             index = item % self.page_size
             if page == self.page:
-                # print('still in range ')
+                logger.debug('Index in range %s translated to %s', item, index)
                 return self.elem_class_instance(**self.data[index])
             else:
                 # print('out of range, fetch')
@@ -411,6 +423,7 @@ class SearchClientMixin(ListClientMixin):
         self.base_search_uri = uri
         final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
         self.document = self.client.get(final_uri, format='hal')
+        logger.debug('Loaded document from %s', self.document.url)
         return self.document
 
     def fetch_page(self, page):
@@ -419,4 +432,5 @@ class SearchClientMixin(ListClientMixin):
         """
         uri = self.base_search_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
         self.document = self.client.get(uri, format='hal')
+        logger.debug('Loaded page %s', self.document.url)
         return self.document
