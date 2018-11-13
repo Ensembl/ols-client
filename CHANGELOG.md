@@ -50,3 +50,14 @@ v1.0.5
 
 - Fixed wrong str representation for Property
 - Corrected Detail client to use pagination while searching item unique and list returned
+
+
+v1.0.6
+------
+
+- Added individuals/individual client.
+- Added properties/property client.
+- Added more logging
+- Added test
+- Removed obsoletes helpers
+ 

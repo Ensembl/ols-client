@@ -12,90 +12,84 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
-import math
-import sys
-import time
-import urllib.parse
-import warnings
 import logging
+import urllib.parse
 
-from coreapi import codecs, Client
-from coreapi.exceptions import ErrorMessage
+import math
+import time
+from coreapi import Client, codecs
+import coreapi.exceptions
+from hal_codec import HALCodec as OriginCodec
 
 from ebi.ols.api import exceptions
-from ebi.ols.api.codec import HALCodec
-
-decoders = [HALCodec(), codecs.JSONCodec()]
-site = 'https://www.ebi.ac.uk/ols/api'
 
 logger = logging.getLogger(__name__)
+__all__ = ['HALCodec', 'DetailClientMixin', 'ListClientMixin', 'ItemClient',
+           'SearchClientMixin', 'site']
 
-def filters_ontologies(filters):
-    """ Filters queries for ontologies (in fact none)"""
-    return filters or {}
-
-
-def filters_response(filters):
-    """ Filters queries for search"""
-    assert set(filters.keys()).issubset(
-        {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
-         'local'}) or len(filters) == 0, "Unauthorized filter key"
-    if 'fieldList' in filters:
-        assert (set(filters['fieldList'].keys().issubset(
-            {'iri', 'ontology_name', 'ontology_prefix', 'short_form', 'description', 'id', 'label',
-             'is_defining_ontology', 'obo_id', 'type'}
-        )))
-    if 'queryFields' in filters:
-        assert (set(filters['queryFields'].keys().issubset(
-            {'label', 'synonym', 'description', 'short_form', 'obo_id', 'annotations', 'logical_description',
-             'iri'}
-        )))
-    if 'type' in filters:
-        assert (set(filters['type'].keys().issubset(
-            {'class', 'property', 'individual', 'ontology'}
-        )))
-    if 'exact' in filters:
-        assert (filters['exact'] in ['true', 'false'])
-    if 'groupFields' in filters:
-        assert (filters['groupFields'] in ['true', 'false'])
-    if 'obsoletes' in filters:
-        assert (filters['obsoletes'] in ['true', 'false'])
-    if 'local' in filters:
-        assert (filters['local'] in ['true', 'false'])
-    return filters
+site = 'https://www.ebi.ac.uk/ols/api'
 
 
-def filters_terms(filters):
-    """ Check filters for terms queries"""
-    assert set(filters.keys()).issubset({'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
-    assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
-    return filters
-
-
-def uri_ontologies(identifier):
-    """ Get identifier format for ontologies """
-    return identifier
-
-
-def uri_terms(identifier):
-    """ Get identifier format for terms (doubled encoded uri) """
-    return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
-
-
-def uri_individuals(identifier):
-    """ Get identifier format for individuals (doubled encoded uri) """
-    return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
-
-
-def uri_properties(identifier):
-    """ Get identifier format for properties (doubled encoded uri) """
-    return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+class HALCodec(OriginCodec):
+    format = 'hal'
 
 
 class BaseClient(object):
+    decoders = [HALCodec(), codecs.JSONCodec()]
 
-    def __init__(self):
-        self.client = Client(decoders=decoders)
+    def __init__(self, uri, elem_class):
+        """
+        Init from base uri and expected element helper class
+        :param uri: relative uri to base OLS url
+        :param elem_class: helper class expected
+        """
+        self.client = Client(decoders=self.decoders)
+        self.uri = uri
+        self.elem_class = elem_class
+
+    @staticmethod
+    def filters_response(filters):
+        """ Filters queries for search"""
+        logger.debug('Applying filters %s', filters)
+        assert set(filters.keys()).issubset(
+            {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
+             'local'}) or len(filters) == 0, "Unauthorized filter key"
+        if 'fieldList' in filters:
+            assert (set(filters['fieldList'].keys().issubset(
+                {'iri', 'ontology_name', 'ontology_prefix', 'short_form', 'description', 'id', 'label',
+                 'is_defining_ontology', 'obo_id', 'type'}
+            )))
+        if 'queryFields' in filters:
+            assert (set(filters['queryFields'].keys().issubset(
+                {'label', 'synonym', 'description', 'short_form', 'obo_id', 'annotations', 'logical_description',
+                 'iri'}
+            )))
+        if 'type' in filters:
+            assert (set(filters['type'].keys().issubset(
+                {'class', 'property', 'individual', 'ontology'}
+            )))
+        if 'exact' in filters:
+            assert (filters['exact'] in ['true', 'false'])
+        if 'groupFields' in filters:
+            assert (filters['groupFields'] in ['true', 'false'])
+        if 'obsoletes' in filters:
+            assert (filters['obsoletes'] in ['true', 'false'])
+        if 'local' in filters:
+            assert (filters['local'] in ['true', 'false'])
+        return filters
+
+    @staticmethod
+    def filters_terms(filters):
+        """ Check filters for terms queries"""
+        logger.debug('Applying filters %s', filters)
+        assert set(filters.keys()).issubset({'size', 'iri', 'obo_id', 'short_form'}), "Unauthorized filter key"
+        assert len(filters.keys()) <= 1, "Only one filter can be applied at a time"
+        return filters
+
+    @staticmethod
+    def make_uri(identifier):
+        """ Get identifier format for ontologies """
+        return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
 
 
 class DetailClientMixin(BaseClient):
@@ -104,70 +98,67 @@ class DetailClientMixin(BaseClient):
 
     """
 
-    def __init__(self, uri, elem_class):
-        """
-        Init from base uri and expected element helper class
-        :param uri: relative uri to base OLS url
-        :param elem_class: helper class expected
-        """
-        super().__init__()
-        self.uri = uri
-        self.elem_class = elem_class
-
-    def __call__(self, identifier, silent=False, unique=False):
+    def __call__(self, identifier, silent=True, unique=True):
         """ Check one element from OLS API accroding to specified identifier
         In cas API returns multiple element return either:
         - the one which is defining_ontology (flag True)
         - The first one if none (Should not happen)
         """
-        identifier_fn = getattr(sys.modules[__name__], 'uri_' + self.elem_class.path)
-        path = "/".join([site, self.uri, identifier_fn(identifier)])
+        iri = self.make_uri(identifier)
+        path = "/".join([self.uri, iri])
+        logger_id = '[identifier:{}, path:{}]'.format(iri, path)
+        logger.debug('Detail client %s [silent:%s, unique:%s]', logger_id, silent, unique)
         try:
             document = self.client.get(path)
-            # print('current path', self.elem_class, path)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
-                    warnings.warn('OLS returned multiple {}s for {}'.format(self.elem_class.__name__, identifier))
+                    logger.warning('OLS returned multiple {}s for {}'.format(self.elem_class.__name__, logger_id))
                 # return a list instead
-                elems = ListClientMixin(self.uri, self.elem_class, document)
+                elms = ListClientMixin(self.uri, self.elem_class, document, 100)
                 if not unique:
-                    return elems
+                    return elms
                 else:
-                    for elem in elems:
+                    for elem in elms:
                         if elem.is_defining_ontology:
                             return elem
+                    logger.warning('Unable to fin item %s defined in an ontology', logger_id)
                 return None
             return self.elem_class(**document.data)
-        except ErrorMessage as e:
-            # print(e.error)
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
             raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
 
 
 class ListClientMixin(BaseClient):
     """
     List client retrieve items (ontologies, terms, individuals, properties) as list-like object from OLS REST api.
-
-    TODO: implement __getslice__
-    TODO: review error management
     """
+    _pages = None
+    _len = None
     page_size = 1000
 
-    def __init__(self, uri, elem_class, document=None):
+    def __init__(self, uri, elem_class, document=None, page_size=1000):
         """
         Initialize a list object
         :param uri: the OLS api base source uri
         :param elem_class: the expected class items objects
         :param: coreapi.Document from api (used to avoid double call to api if already loade elsewhere
         """
-        super().__init__()
-        self.document = document or self.client.get('/'.join([site, uri]), force_codec='hal')
-        # print(self.document)
-        self.elem_class = elem_class
-        self.base_uri = self.path if document is not None else uri
-        # print('base uri set to ', self.base_uri)
+        super().__init__(uri, elem_class)
+        self.document = document or self.client.get(uri, force_codec='hal')
+        self.page_size = page_size
+        self.base_uri = document.url if document is not None else uri
         self.index = 0
-        self._max = None
+        logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
 
     def elem_class_instance(self, **data):
         """
@@ -184,22 +175,23 @@ class ListClientMixin(BaseClient):
         """
         if filters is None:
             filters = {}
+        else:
+            try:
+                check_fn = getattr(self, 'filters_' + self.path)
+                if callable(check_fn):
+                    filters = check_fn(filters)
+            except AttributeError:
+                pass
+            except AssertionError as e:
+                raise exceptions.BadParameter({'error': "Bad Request", 'message': str(e),
+                                               'status': 400, 'path': self.path, 'timestamp': time.time()})
+            if 'size' in filters:
+                self.page_size = filters['size']
         params = {'page': 0, 'size': self.page_size}
-        try:
-            check_fn = getattr(sys.modules[__name__], 'filters_' + self.path)
-            if callable(check_fn):
-                filters = check_fn(filters)
-        except AttributeError:
-            pass
-        except AssertionError as e:
-            raise exceptions.BadParameter({'error': "Bad Request", 'message': str(e),
-                                           'status': 400, 'path': self.path, 'timestamp': time.time()})
-
         params.update(filters)
         path = action if action else self.path
         self.fetch_document(path, params)
         self.index = 0
-
         return self
 
     def fetch_document(self, path, params=None):
@@ -211,7 +203,8 @@ class ListClientMixin(BaseClient):
         """
         if params is None:
             params = {}
-        logger.debug('Action on document %s/%s (%s)', self.document.url, path, params)
+        logger.debug('Action on document %s/%s?%s', self.document.url, path,
+                     '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
         self.document = self.client.action(self.document, [path], params=params, validate=False)
         return self.document
 
@@ -221,8 +214,8 @@ class ListClientMixin(BaseClient):
         :param page: expected page
         :return Document: fetched page document fro api
         """
-        uri = '/'.join([site, self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
-        logger.debug('Fetch page %s ', uri)
+        uri = '/'.join([self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
+        logger.debug('Fetch page "%s"', uri)
         self.document = self.client.get(uri, force_codec='hal')
         return self.document
 
@@ -231,9 +224,8 @@ class ListClientMixin(BaseClient):
         Current list full length (all elements)
         :return: int
         """
-        if self._max:
-            return self._max
-        return self.document['page']['totalElements']
+        # # print('len ', self._len, self._len or self.document['page']['totalElements'])
+        return self._len or self.document['page']['totalElements']
 
     def __iter__(self):
         """
@@ -263,7 +255,11 @@ class ListClientMixin(BaseClient):
         Total pages from last api request
         :return: int
         """
-        return self.document['page']['totalPages'] - 1
+        return self._pages or self.document['page']['totalPages'] - 1
+
+    @pages.setter
+    def pages(self, pages):
+        self._pages = pages
 
     @property
     def data(self):
@@ -279,17 +275,19 @@ class ListClientMixin(BaseClient):
         Next element in current list, if outbound current pages items, load next page
         :return: list
         """
-        if self.index < len(self.data):
+
+        if self.index < len(self.data):  # and self.index + (self.page * self.page_size) < len(self):
             # Simply return current indexed item
             pass
         elif self.page < self.pages:
             self.fetch_document('next')
-            # self.document = self.client.action(self.document, ['next'])
             self.index = 0
         else:
             raise StopIteration
+
         loaded = self.elem_class_instance(**self.data[self.index])
         self.index += 1
+        logger.debug('Loaded %s', loaded)
         return loaded
 
     def __getitem__(self, item):
@@ -299,32 +297,34 @@ class ListClientMixin(BaseClient):
         :return: item class object
         """
         if isinstance(item, slice):
-            logger.debug('sliced element [%s %s]', item.start, item.stop)
+            logger.debug('Sliced params [%s %s]', item.start, item.stop)
             if item.start > (len(self) - 1) or item.stop > (len(self) - 1):
-                raise KeyError('Out of bound indexes')
+                raise KeyError('Out of bound indexes %s ', len(self) - 1)
+
             page = item.start // self.page_size
+            logger.debug('Expected page for start %s', page)
             if page != self.page:
                 self.fetch_page(page)
-            self.index = item.start - (page * self.page_size)
-            self._max = item.stop - item.start + 1 + self.index
-            self.sliced = True
-            return [self[ii] for ii in
-                    range(self.index, self.index + max(item.start - item.stop, item.stop - item.start))]
-        if type(item) is not int:
-            raise TypeError("Key indexes must be int, not {}".format(type(item)))
-        if item > (len(self) - 1):
-            raise KeyError("No corresponding key {}".format(item))
-        else:
+            if item.start < item.stop:
+                slice_range = range(item.start, item.stop)
+                self.index = item.start
+            else:
+                self.index = item.stop
+                slice_range = range(item.start, item.stop, -1)
+            logger.debug('Creating slice from [%s - %s]', self.index, slice_range)
+            return [self[ii] for ii in slice_range]
+        elif isinstance(item, int):
             page = item // self.page_size
             index = item % self.page_size
-            if page == self.page:
-                logger.debug('Index in range %s translated to %s', item, index)
-                return self.elem_class_instance(**self.data[index])
-            else:
-                # print('out of range, fetch')
+            logger.debug('Current page %s. %s translated to %s in page %s', self.page, item, index, page)
+            if page != self.page:
                 self.fetch_page(page)
                 self.index = index
-                return self.elem_class_instance(**self.data[index])
+            if index > len(self.data):
+                raise KeyError("No corresponding key {}".format(item))
+            return self.elem_class_instance(**self.data[index])
+        else:
+            raise TypeError("Key indexes must be int, not {}".format(type(item)))
 
     def __repr__(self):
         """ String repr of list
@@ -364,7 +364,7 @@ class SearchClientMixin(ListClientMixin):
         :return: mixed
         """
         import ebi.ols.api.helpers as helpers
-        type_item = kwargs.get('type')
+        type_item = kwargs.pop('type')
         if type_item == 'property':
             return helpers.Property(**kwargs)
         elif type_item == 'individual':
@@ -373,6 +373,8 @@ class SearchClientMixin(ListClientMixin):
             return helpers.Ontology(**kwargs)
         else:
             return helpers.Term(**kwargs)
+
+    # TODO elem_class as property
 
     @property
     def start(self):
@@ -416,12 +418,13 @@ class SearchClientMixin(ListClientMixin):
         uri += '?q=' + self.query
         filters_uri = ''
         for filter_name, filter_value in params.items():
-            # print(filter_name, filter_value)
+            logger.debug('Filter %s:%s', filter_name, filter_value)
             filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
         filters_uri += "&exact=on"
         uri += filters_uri
         self.base_search_uri = uri
         final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
+        logger.debug('Final uri %s', final_uri)
         self.document = self.client.get(final_uri, format='hal')
         logger.debug('Loaded document from %s', self.document.url)
         return self.document
@@ -434,3 +437,34 @@ class SearchClientMixin(ListClientMixin):
         self.document = self.client.get(uri, format='hal')
         logger.debug('Loaded page %s', self.document.url)
         return self.document
+
+
+class ItemClient(BaseClient):
+
+    def __call__(self, item=None, **kwargs):
+        import ebi.ols.api.helpers as helpers
+        if item:
+            if isinstance(item, helpers.Property):
+                inner_client = DetailClientMixin(
+                    '/'.join([self.uri, 'ontologies/{}/properties']).format(item.ontology_name),
+                    helpers.Property)
+            elif isinstance(item, helpers.Individual):
+                inner_client = DetailClientMixin(
+                    '/'.join([self.uri, 'ontologies/{}/individuals']).format(item.ontology_name),
+                    helpers.Ontology)
+            elif isinstance(item, helpers.Ontology):
+                inner_client = DetailClientMixin('/'.join([self.uri, 'ontologies']), helpers.Ontology)
+            elif isinstance(item, helpers.Term):
+                inner_client = DetailClientMixin(
+                    '/'.join([self.uri, 'ontologies/{}/terms']).format(item.ontology_name),
+                    helpers.Term)
+            else:
+                raise NotImplementedError('Unable to fin any suitable client for %s', item.__class__.__name__)
+            return inner_client(item.iri)
+        else:
+            assert ('ontology_name' in kwargs)
+            assert ('iri' in kwargs)
+            assert (issubclass(item, helpers.OLSHelper))
+            logger.warning('Called S!!!')
+            inst = item(ontology_name=kwargs.get('ontology_name'), iri=kwargs.get('iri'))
+            return self.__call__(item=inst)
