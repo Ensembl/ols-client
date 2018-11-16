@@ -64,25 +64,45 @@ class HasAccessionMixin(object):
     _accession = None
 
     @property
+    def accession_old(self):
+        """
+        Return term accession issued from related retrieved data, try to figure out related obo_id if value not
+        set in OLS
+        :return: str
+        """
+        if not self.obo_id and self.short_form:
+            log = logging.getLogger('ols_errors')
+            log.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+            # guess
+            sp = self.short_form.split('_')
+            if len(sp) == 2:
+                self.obo_id = ':'.join(sp)
+                return self.obo_id
+            else:
+                # no '_' character in short_form might ignore the error (may be #Thing)
+                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                return False
+        return self.obo_id
+
+    @property
     def accession(self):
         if self._accession:
             return self._accession
         if not self.obo_id:
-            if self.short_form:
-                logger.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
-                # guess
-                sp = self.short_form.split('_')
-                if len(sp) >= 2:
-                    accession = sp[0] + ':' + sp[1]
-                    if len(sp) > 2:
-                        accession += '_'.join(sp[2:])
-                    return accession
-                else:
-                    # no '_' character in short_form might ignore the error (may be #Thing)
-                    logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
-                    return None
+            logger.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+            to_parse = self.short_form or self.iri.rsplit('/', 1)[-1]
+            # guess
+            sp = to_parse.split('_')
+            if len(sp) >= 2:
+                left = '_'.join(sp[:-1])
+                right = sp[len(sp) - 1]
+                accession = ':'.join([left, right])
+                logger.debug('Accession sorted out %s', accession)
+                self._accession = accession
+                return accession
             else:
-                logger.error('Missing required info to get accession [%s]', self.iri)
+                # no '_' character in short_form might ignore the error (may be #Thing)
+                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return None
         return self.obo_id
 
@@ -303,24 +323,9 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def subsets(self):
+        """ Returned coma separated list of term subsets """
         return ','.join(
             [subset for subset in sorted(self.in_subset, key=lambda s: s.lower())]) if self.in_subset else ''
-
-    @property
-    def accession(self):
-        if not self.obo_id and self.short_form:
-            log = logging.getLogger('ols_errors')
-            log.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
-            # guess
-            sp = self.short_form.split('_')
-            if len(sp) == 2:
-                self.obo_id = ':'.join(sp)
-                return self.obo_id
-            else:
-                # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
-                return False
-        return self.obo_id
 
     @property
     def name(self):

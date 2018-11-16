@@ -16,11 +16,11 @@ import logging
 import unittest
 import warnings
 
+import ebi.ols.api.exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
-import ebi.ols.api.exceptions
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
                     datefmt='%m-%d %H:%M:%S')
 
@@ -44,11 +44,13 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertIsInstance(ontology.config, helpers.OntologyConfig)
         self.assertIsInstance(ontology.config.annotations, helpers.OntologyAnnotation)
 
-    def _checkProperty(self, property):
-        self.assertIsInstance(property, helpers.Property)
+    def _checkProperty(self, prop):
+        self.assertIsInstance(prop, helpers.Property)
 
     def _checkProperties(self, properties):
-        [self._checkProperty(property) for property in properties]
+        if type(properties) is helpers.Property:
+            properties = [properties]
+        [self._checkProperty(prop) for prop in properties]
 
     def _checkIndividual(self, individual):
         self.assertIsInstance(individual, helpers.Individual)
@@ -62,12 +64,10 @@ class OntologyTestSuite(unittest.TestCase):
     def _checkMixed(self, helper):
         return getattr(self, '_check' + helper.__class__.__name__)(helper)
 
-    @ignore_warnings
     def setUp(self):
         warnings.simplefilter("ignore", ResourceWarning)
         self.client = OlsClient(page_size=100)
 
-    @ignore_warnings
     def test_ontologies_list(self):
         # standard first page
         ontologies = self.client.ontologies()
@@ -90,7 +90,6 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(current, len(ontologies))
         self.assertEqual(num_pages, ontologies.pages)
 
-    @ignore_warnings
     def test_ontology(self):
         # FIXME add further testing on single ontology data
         ontology = self.client.ontology('aero')
@@ -104,7 +103,6 @@ class OntologyTestSuite(unittest.TestCase):
     def _checkTerms(self, terms):
         [self._checkTerm(term) for term in terms]
 
-    @ignore_warnings
     def test_ontology_terms(self):
         """
         Tess retrieve ontology terms
@@ -117,21 +115,18 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreaterEqual(len(terms), ontology.number_of_terms)
         self._checkTerms(terms)
 
-    @ignore_warnings
     def test_ontology_individuals(self):
         ontology = self.client.ontology("aero")
         individuals = ontology.individuals()
         self.assertGreaterEqual(len(individuals), ontology.number_of_individuals)
         self._checkIndividuals(individuals)
 
-    @ignore_warnings
     def test_ontology_properties(self):
         ontology = self.client.ontology("aero")
         properties = ontology.properties()
         self.assertGreaterEqual(len(properties), ontology.number_of_properties)
         self._checkProperties(properties)
 
-    @ignore_warnings
     def test_list_range(self):
         ontology = self.client.ontology("aero")
         terms = ontology.terms({'size': self.client.page_size})
@@ -147,7 +142,6 @@ class OntologyTestSuite(unittest.TestCase):
             current += 1
         self.assertEqual(slice_terms[len(slice_terms) - 1], term_3)
 
-    @ignore_warnings
     def test_filters(self):
         """
         Test ontology terms api filtering options
@@ -172,7 +166,6 @@ class OntologyTestSuite(unittest.TestCase):
             self.assertEqual(term.obo_id, 'EFO:1000838')
             self.assertEqual(term.iri, 'http://www.ebi.ac.uk/efo/EFO_1000838')
 
-    @ignore_warnings
     def test_terms(self):
         """
         Test direct calls to terms entry point.
@@ -185,8 +178,6 @@ class OntologyTestSuite(unittest.TestCase):
             self._checkTerm(ancestor)
         self._checkTerm(term_1)
 
-
-    @ignore_warnings
     def test_dynamic_links(self):
         term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_0000104')
         for relation in term.relations_types:
@@ -197,7 +188,6 @@ class OntologyTestSuite(unittest.TestCase):
         term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
         self.assertIn('has_disease_location', term.relations_types)
 
-    @ignore_warnings
     def test_search(self):
         """
         Need more tests for filtering and selected fields in Results
@@ -234,7 +224,6 @@ class OntologyTestSuite(unittest.TestCase):
             clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
         self.assertGreater(len(clazz), 1)
 
-    @ignore_warnings
     def test_individuals(self):
         self.assertTrue(True)
         ontology = self.client.ontology('aero')
@@ -247,7 +236,6 @@ class OntologyTestSuite(unittest.TestCase):
             stop += 1
             # print(stop, indi)
 
-    @ignore_warnings
     def test_reverse_range(self):
         ontologies = self.client.ontologies()
         sliced = ontologies[158:110]
@@ -264,29 +252,36 @@ class OntologyTestSuite(unittest.TestCase):
             self.assertEqual(ontology.ontology_id, ontologies[i].ontology_id)
             i += 1
 
-    def testErrorSearch(self):
+    def test_error_search(self):
         properties = self.client.search(query='goslim_yeast', filters={'ontology': 'go', 'type': 'property'})
-        print(properties)
+        for prop in properties:
+            details = self.client.detail(ontology_name='go', iri=prop.iri, type=helpers.Property)
+            print(details)
 
-    def testAccession(self):
-        accessions = ['TopObjectProperty', 'gocheck_do_not_annotate', 'SubsetProperty']
+    def test_accessions(self):
+        accessions = ['TopObjectProperty', 'SubsetProperty', 'ObsoleteClass']
         for accession in accessions:
-            o_term = helpers.Term(ontology_name='fake', short_form=accession)
-            self.assertFalse(o_term.accession)
+            prop = helpers.Property(short_form=accession)
+            self.assertIsNone(prop.accession)
+        iris = ['http://purl.obolibrary.org/obo/go#gocheck_do_not_annotate']
+        for accession in iris:
+            prop = helpers.Property(iri=accession)
+            self.assertIsNotNone(prop.accession)
+            o_property = self.client.property(accession, unique=False)
+            self.assertIsNotNone(o_property)
+            self._checkProperties(o_property)
 
-    def testException(self):
+    def test_exception_retry(self):
         # unknown URI
         with self.assertRaises(ebi.ols.api.exceptions.NotFoundException):
             h_term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_99999999')
             self.client.detail(h_term)
+        with self.assertRaises(ebi.ols.api.exceptions.NotFoundException):
+            self.client.ontology('unexisting_ontology')
         with self.assertRaises(ebi.ols.api.exceptions.BadParameter):
             filters = {'accession': 'EFO:0000405'}
-            terms = self.client.terms(filters=filters)
-
-        with self.assertRaises(ebi.ols.api.exceptions.ServerError):
+            self.client.terms(filters=filters)
+        with self.assertRaises(ebi.ols.api.exceptions.ObjectNotRetrievedError):
             prop = helpers.Property(iri='http://purl.obolibrary.org/obo/uberon/insect-anatomy#efo_slim',
                                     ontology_name='efo')
-            terms = self.client.detail(prop)
-        prop = helpers.Property(iri='http://purl.obolibrary.org/obo/uberon/insect-anatomy#efo_slim',
-                                ontology_name='efo')
-        terms = self.client.detail(prop)
+            self.client.detail(prop)

@@ -60,4 +60,5 @@ v1.0.6
 - Added more logging
 - Added test
 - Removed obsoletes helpers
+- Added 5 retries in case of remote server errors
  

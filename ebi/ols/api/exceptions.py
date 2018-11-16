@@ -18,16 +18,11 @@ class OlsException(Exception):
     """
     A base class for all `OLS` exceptions.
     """
-
-    def __init__(self, error, uri=None):
-        self.error = error['message'] if 'message' in error else None
-        self.status = error['status'] if 'status' in error else None
-        self.origin = error['exception'] if 'exception' in error else None
-        self.timestamp = error['timestamp'] if 'timestamp' in error else None
-        self.uri = uri
+    def __init__(self, error):
+        self.error = error
 
     def __repr__(self):
-        return '{}({}) [{}-{}]{%s}'.format(self.origin, self.status, self.timestamp, self.error, self.uri)
+        return '%s(%s)' % (self.__class__.__name__, repr(self.error))
 
     def __str__(self):
         return str(self.error)
@@ -50,5 +45,11 @@ class BadParameter(OlsException):
 class ServerError(OlsException):
     """
     Convenient class for OLS server Errors
+    """
+    pass
+
+class ObjectNotRetrievedError(OlsException):
+    """
+    Non recoverable Server Errors
     """
     pass

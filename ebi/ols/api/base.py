@@ -15,19 +15,57 @@
 import logging
 import urllib.parse
 
+import coreapi.exceptions
 import math
 import time
 from coreapi import Client, codecs
-import coreapi.exceptions
 from hal_codec import HALCodec as OriginCodec
+from requests.exceptions import ConnectionError
 
 from ebi.ols.api import exceptions
 
 logger = logging.getLogger(__name__)
-__all__ = ['HALCodec', 'DetailClientMixin', 'ListClientMixin', 'ItemClient',
-           'SearchClientMixin', 'site']
+__all__ = ['HALCodec', 'DetailClientMixin', 'ListClientMixin',
+           'SearchClientMixin', 'site', 'retry_requests']
 
 site = 'https://www.ebi.ac.uk/ols/api'
+
+
+def retry_requests(api_func):
+    """
+    Decorator for retrying calls to API in case of Network issues
+    :param api_func: Api client function to call
+    :return:
+    """
+    from itertools import chain
+
+    def call_api(*args, **kwargs):
+        call_object = args[0].__class__.__name__
+        retry = 1
+        max_retry = 5
+        while retry <= max_retry:
+            trace = "%s.%s(%s)" % (call_object, api_func.__name__,
+                                   ", ".join(map(repr, chain(args[1:], kwargs.values()))))
+            try:
+                logger.debug('Calling client (%s/%s): %s ', retry, max_retry, trace)
+                return api_func(*args, **kwargs)
+            except (ConnectionError, coreapi.exceptions.CoreAPIException, exceptions.ServerError) as e:
+                # wait 5 seconds until next OLS api client try
+                logger.warning('Call retry (%s/%s): %s ', retry, max_retry, trace)
+                time.sleep(5)
+                retry += 1
+                if retry > max_retry:
+                    logger.error('API unrecoverable error %s', trace)
+                    raise exceptions.ObjectNotRetrievedError(e)
+            except exceptions.NotFoundException as e:
+                # no retry when this is just a 404 error
+                logger.error('API unrecoverable error %s', trace)
+                raise e
+            except exceptions.BadParameter as e:
+                logger.error('API call error %s', trace)
+                raise e
+
+    return call_api
 
 
 class HALCodec(OriginCodec):
@@ -98,6 +136,7 @@ class DetailClientMixin(BaseClient):
 
     """
 
+    @retry_requests
     def __call__(self, identifier, silent=True, unique=True):
         """ Check one element from OLS API accroding to specified identifier
         In cas API returns multiple element return either:
@@ -168,6 +207,7 @@ class ListClientMixin(BaseClient):
         """
         return self.elem_class(**data)
 
+    @retry_requests
     def __call__(self, filters=None, action=None):
         """
         Allow to search for a list of helpers, retrieve self, wich is now a iterator on the actual list of related
@@ -194,6 +234,7 @@ class ListClientMixin(BaseClient):
         self.index = 0
         return self
 
+    @retry_requests
     def fetch_document(self, path, params=None):
         """
         Fetch coreapi.Document object fro specified path (based on current loaded document fro base uri
@@ -208,6 +249,7 @@ class ListClientMixin(BaseClient):
         self.document = self.client.action(self.document, [path], params=params, validate=False)
         return self.document
 
+    @retry_requests
     def fetch_page(self, page):
         """
         Fetch document page from paginated results
@@ -402,6 +444,7 @@ class SearchClientMixin(ListClientMixin):
         """
         return self.document.data[self.path]['docs']
 
+    @retry_requests
     def fetch_document(self, path, params=None):
         """
         Fetch current search elements
@@ -429,6 +472,7 @@ class SearchClientMixin(ListClientMixin):
         logger.debug('Loaded document from %s', self.document.url)
         return self.document
 
+    @retry_requests
     def fetch_page(self, page):
         """ Fetch OLS api search page
         :return Document
@@ -439,32 +483,3 @@ class SearchClientMixin(ListClientMixin):
         return self.document
 
 
-class ItemClient(BaseClient):
-
-    def __call__(self, item=None, **kwargs):
-        import ebi.ols.api.helpers as helpers
-        if item:
-            if isinstance(item, helpers.Property):
-                inner_client = DetailClientMixin(
-                    '/'.join([self.uri, 'ontologies/{}/properties']).format(item.ontology_name),
-                    helpers.Property)
-            elif isinstance(item, helpers.Individual):
-                inner_client = DetailClientMixin(
-                    '/'.join([self.uri, 'ontologies/{}/individuals']).format(item.ontology_name),
-                    helpers.Ontology)
-            elif isinstance(item, helpers.Ontology):
-                inner_client = DetailClientMixin('/'.join([self.uri, 'ontologies']), helpers.Ontology)
-            elif isinstance(item, helpers.Term):
-                inner_client = DetailClientMixin(
-                    '/'.join([self.uri, 'ontologies/{}/terms']).format(item.ontology_name),
-                    helpers.Term)
-            else:
-                raise NotImplementedError('Unable to fin any suitable client for %s', item.__class__.__name__)
-            return inner_client(item.iri)
-        else:
-            assert ('ontology_name' in kwargs)
-            assert ('iri' in kwargs)
-            assert (issubclass(item, helpers.OLSHelper))
-            logger.warning('Called S!!!')
-            inst = item(ontology_name=kwargs.get('ontology_name'), iri=kwargs.get('iri'))
-            return self.__call__(item=inst)
