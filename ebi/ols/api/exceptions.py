@@ -13,18 +13,16 @@
    limitations under the License.
 """
 
+
 class OlsException(Exception):
     """
     A base class for all `OLS` exceptions.
     """
     def __init__(self, error):
-        self.error = error['message']
-        self.status = error['status']
-        self.origin = error['exception']
-        self.timestamp = error['timestamp']
+        self.error = error
 
     def __repr__(self):
-        return '{}({}) [{}-{}]'.format(self.origin, self.status, self.timestamp, self.error)
+        return '%s(%s)' % (self.__class__.__name__, repr(self.error))
 
     def __str__(self):
         return str(self.error)
@@ -43,3 +41,15 @@ class BadParameter(OlsException):
     """
     pass
 
+
+class ServerError(OlsException):
+    """
+    Convenient class for OLS server Errors
+    """
+    pass
+
+class ObjectNotRetrievedError(OlsException):
+    """
+    Non recoverable Server Errors
+    """
+    pass
