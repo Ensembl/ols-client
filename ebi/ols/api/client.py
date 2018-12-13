@@ -18,8 +18,7 @@ import inspect
 from coreapi import Client
 
 import ebi.ols.api.helpers as helpers
-from ebi.ols.api.base import ListClientMixin, DetailClientMixin, HALCodec, SearchClientMixin, site, \
-    retry_requests
+from ebi.ols.api.base import ListClientMixin, DetailClientMixin, HALCodec, SearchClientMixin, retry_requests
 
 def_page_size = 1000
 logger = logging.getLogger(__name__)
@@ -29,6 +28,7 @@ class OlsClient(object):
     """
     Official EMBL/EBI Ontology Lookup Service generic client.
     """
+    site = 'https://www.ebi.ac.uk/ols/api'
 
     class ItemClient(object):
 
@@ -67,7 +67,8 @@ class OlsClient(object):
     def __init__(self, page_size=None, base_site=None):
         # Init client from base Api URI
         self.page_size = page_size or def_page_size
-        self.site = base_site or site
+        if base_site:
+            OlsClient.site = base_site
         document = Client(decoders=[HALCodec()]).get(self.site)
         logger.debug('OlsClient [%s][%s]', document.url, self.page_size)
         # List Clients
@@ -86,3 +87,5 @@ class OlsClient(object):
         # Special clients
         self.search = SearchClientMixin('/'.join([self.site, 'search']), helpers.OLSHelper, document, self.page_size)
         self.detail = self.ItemClient(self.site)
+
+

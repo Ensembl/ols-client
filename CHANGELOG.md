@@ -62,3 +62,11 @@ v1.0.6
 - Removed obsoletes helpers
 - Added 5 retries in case of remote server errors
  
+ v1.0.7
+ ------
+ 
+- Added extra path to term namespace access from API result (annotation/obo_namespace and annotation/namespace)
+- Deprecated Term.obo_name_space property, replace by Term.namespace
+- Added kwargs parameters parsing in Search allowing now client.search(query='tada',type='property',...)
+- Fixed Search Filtering issues
+ 
