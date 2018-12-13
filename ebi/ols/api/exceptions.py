@@ -18,6 +18,7 @@ class OlsException(Exception):
     """
     A base class for all `OLS` exceptions.
     """
+
     def __init__(self, error):
         self.error = error
 
@@ -48,8 +49,16 @@ class ServerError(OlsException):
     """
     pass
 
+
 class ObjectNotRetrievedError(OlsException):
     """
     Non recoverable Server Errors
+    """
+    pass
+
+
+class BadFilters(Exception):
+    """
+    Bad filters applied while calling api client
     """
     pass

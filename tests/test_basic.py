@@ -19,6 +19,7 @@ import warnings
 import ebi.ols.api.exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
+import ebi.ols.api.exceptions as exceptions
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
@@ -142,7 +143,7 @@ class OntologyTestSuite(unittest.TestCase):
             current += 1
         self.assertEqual(slice_terms[len(slice_terms) - 1], term_3)
 
-    def test_filters(self):
+    def test_list_filters(self):
         """
         Test ontology terms api filtering options
         :return:
@@ -188,10 +189,9 @@ class OntologyTestSuite(unittest.TestCase):
         term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
         self.assertIn('has_disease_location', term.relations_types)
 
-    def test_search(self):
+    def test_search_simple(self):
         """
-        Need more tests for filtering and selected fields in Results
-        :return:
+        Test Basic, simple query param
         """
         # test search engine for terms
         results = self.client.search(query='gene_ontology')
@@ -207,34 +207,68 @@ class OntologyTestSuite(unittest.TestCase):
         self._checkTerms(results)
         term_1 = results[14]
         self.assertEqual(term_2, term_1)
+
+    def test_search_filters(self):
+        """
+        Test Search feature :
+        - with dictionary parameter
+        - kwargs passed
+        """
         # Test search which returns only properties
-        properties = self.client.search(query='goslim_chembl')
+        properties = self.client.search(query='goslim_chembl', filters={'type': 'property'})
         for prop in properties:
             self._checkMixed(prop)
             detailed = self.client.detail(prop)
             self._checkMixed(detailed)
 
-        # Mixed helpers and slice on search
-        mixed = self.client.search(query='go')
-        i = 0
+    def test_search_kwargs(self):
+        """
+        Test Search feature : - kwargs passed
+        """
+        mixed = self.client.search(query='go', type='property')
+        self.assertGreaterEqual(len(mixed), 500)
+
         clazz = []
         for mix in mixed:
-            if i > 25:
-                break
             clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
-        self.assertGreater(len(clazz), 1)
+        self.assertEqual(len(clazz), 1)
+        clazz = []
+        # only terms and properties
+        mixed = self.client.search(query='go', ontology='efo')
+        self.assertGreater(len(mixed), 1)
+        for mix in mixed:
+            clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
+        self.assertEqual(len(clazz), 2)
+        # test obsoletes
+        mixed = self.client.search(query='GO_0003698', ontology='go', obsoletes='true', type='term')
+        found_obsolete = False
+        for mix in mixed:
+            print(mix.is_obsolete)
+            detailed = self.client.detail(ontology_name='go', iri=mix.iri, type=helpers.Term)
+            found_obsolete = found_obsolete or (detailed.is_obsolete == 1)
+        self.assertTrue(found_obsolete)
+
+    def test_search_wrong_filters(self):
+        with self.assertRaises(exceptions.BadFilters) as ex:
+            self.client.search(query='go', type='property,unknown', ontology='efo')
+            self.assertIn('type', ex.message)
+        with self.assertRaises(exceptions.BadFilters) as ex:
+            self.client.search(query='go', type='property,term', ontology='efo', obsoletes='totototo')
+            self.assertIn('obsoletes', ex.message)
+        with self.assertRaises(exceptions.BadFilters) as ex:
+            self.client.search(query='go', ontology='efo', local='1')
+            self.assertIn('local', ex.message)
+        with self.assertRaises(exceptions.BadFilters) as ex:
+            self.client.search(query='go', ontology='efo', fieldList={'iri', 'label', 'wrong_short_form', 'obo_id'})
+            self.assertIn('fieldList', ex.message)
+        with self.assertRaises(exceptions.BadFilters) as ex:
+            self.client.search(query='go', ontology='efo', queryFields={'label', 'logical_description_wrong', 'iri'})
+            self.assertIn('queryFields', ex.message)
 
     def test_individuals(self):
-        self.assertTrue(True)
         ontology = self.client.ontology('aero')
         individuals = ontology.individuals()
         self._checkIndividuals(individuals)
-        stop = 0
-        for indi in individuals:
-            if stop > 500:
-                break
-            stop += 1
-            # print(stop, indi)
 
     def test_reverse_range(self):
         ontologies = self.client.ontologies()
@@ -278,10 +312,29 @@ class OntologyTestSuite(unittest.TestCase):
             self.client.detail(h_term)
         with self.assertRaises(ebi.ols.api.exceptions.NotFoundException):
             self.client.ontology('unexisting_ontology')
-        with self.assertRaises(ebi.ols.api.exceptions.BadParameter):
+        with self.assertRaises(ebi.ols.api.exceptions.BadFilters):
             filters = {'accession': 'EFO:0000405'}
             self.client.terms(filters=filters)
         with self.assertRaises(ebi.ols.api.exceptions.ObjectNotRetrievedError):
             prop = helpers.Property(iri='http://purl.obolibrary.org/obo/uberon/insect-anatomy#efo_slim',
                                     ontology_name='efo')
             self.client.detail(prop)
+
+    def test_namespace(self):
+        # retrieved from namespace annotation
+        h_term = helpers.Term(ontology_name='phi', iri='http://purl.obolibrary.org/obo/PHI_2000021')
+        self.client.detail(h_term)
+        self.assertIsNotNone(h_term.namespace)
+
+        # retrieved from obo_name_space annotation
+        h_term = helpers.Term(ontology_name='go', iri='http://purl.obolibrary.org/obo/GO_0005230')
+        self.client.detail(h_term)
+        self.assertIsNotNone(h_term.namespace)
+
+    def test_overwritten_site(self):
+        overriden_site = 'https://wwwdev.ebi.ac.uk/ols/api'
+        self.client = OlsClient(base_site=overriden_site)
+        ontology = self.client.ontology('phi')
+        self.assertTrue(self.client.ontology.uri.startswith(overriden_site))
+        terms = ontology.terms()
+        self.assertTrue(terms.uri.startswith(overriden_site))

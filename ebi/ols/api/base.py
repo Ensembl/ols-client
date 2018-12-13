@@ -26,9 +26,7 @@ from ebi.ols.api import exceptions
 
 logger = logging.getLogger(__name__)
 __all__ = ['HALCodec', 'DetailClientMixin', 'ListClientMixin',
-           'SearchClientMixin', 'site', 'retry_requests']
-
-site = 'https://www.ebi.ac.uk/ols/api'
+           'SearchClientMixin', 'retry_requests']
 
 
 def retry_requests(api_func):
@@ -51,6 +49,7 @@ def retry_requests(api_func):
                 return api_func(*args, **kwargs)
             except (ConnectionError, coreapi.exceptions.CoreAPIException, exceptions.ServerError) as e:
                 # wait 5 seconds until next OLS api client try
+                logger.warning('Api Error: %s', e)
                 logger.warning('Call retry (%s/%s): %s ', retry, max_retry, trace)
                 time.sleep(5)
                 retry += 1
@@ -63,6 +62,9 @@ def retry_requests(api_func):
                 raise e
             except exceptions.BadParameter as e:
                 logger.error('API call error %s', trace)
+                raise e
+            except exceptions.BadFilters as e:
+                logger.error('API applied filters errors %s', trace)
                 raise e
 
     return call_api
@@ -90,30 +92,41 @@ class BaseClient(object):
         """ Filters queries for search"""
         logger.debug('Applying filters %s', filters)
         assert set(filters.keys()).issubset(
-            {'ontology', 'type', 'slim', 'queryFields', 'exact', 'fieldList', 'groupField', 'obsoletes',
-             'local'}) or len(filters) == 0, "Unauthorized filter key"
+            {'exact', 'fieldList', 'groupField', 'obsoletes', 'ontology', 'queryFields', 'slim', 'type', 'local'}), \
+            "Unauthorized filter key"
         if 'fieldList' in filters:
-            assert (set(filters['fieldList'].keys().issubset(
-                {'iri', 'ontology_name', 'ontology_prefix', 'short_form', 'description', 'id', 'label',
-                 'is_defining_ontology', 'obo_id', 'type'}
-            )))
+            if type(filters['fieldList']) is str:
+                assertion_set = set(filters['queryFields'].split(','))
+            elif type(filters['fieldList'] is set):
+                assertion_set = filters['fieldList']
+            assert assertion_set.issubset(
+                {'description', 'id', 'iri', 'is_defining_ontology', 'label', 'obo_id', 'ontology_name',
+                 'ontology_prefix', 'short_form', 'type'}
+            ), "Wrong fieldList - check OLS doc"
         if 'queryFields' in filters:
-            assert (set(filters['queryFields'].keys().issubset(
-                {'label', 'synonym', 'description', 'short_form', 'obo_id', 'annotations', 'logical_description',
-                 'iri'}
-            )))
+            if type(filters['queryFields']) is str:
+                assertion_set = set(filters['queryFields'].split(','))
+            elif type(filters['queryFields'] is set):
+                assertion_set = filters['queryFields']
+            assert assertion_set.issubset(
+                {'annotations', 'description', 'iri', 'label', 'logical_description', 'obo_id', 'short_form', 'synonym'}
+                ), "Wrong queryFields - check OLS doc"
         if 'type' in filters:
-            assert (set(filters['type'].keys().issubset(
-                {'class', 'property', 'individual', 'ontology'}
-            )))
+            if type(filters['type']) is str:
+                assertion_set = set(filters['type'].split(','))
+            elif type(filters['type'] is set):
+                assertion_set = filters['type']
+            assert assertion_set.issubset({'class', 'property', 'individual', 'ontology', 'term'}), \
+                "Wrong type - check OLS doc"
+            filters['type'] = filters['type'].replace('term', 'class')
         if 'exact' in filters:
-            assert (filters['exact'] in ['true', 'false'])
+            assert filters['exact'] in ['true', 'false'], '"exact" only accept true|false'
         if 'groupFields' in filters:
-            assert (filters['groupFields'] in ['true', 'false'])
+            assert filters['groupFields'] in ['true', 'false'], '"groupFields" only accept true|false'
         if 'obsoletes' in filters:
-            assert (filters['obsoletes'] in ['true', 'false'])
+            assert filters['obsoletes'] in ['true', 'false'], '"obsoletes" only accept true|false'
         if 'local' in filters:
-            assert (filters['local'] in ['true', 'false'])
+            assert filters['local'] in ['true', 'false'], '"local" only accept true|false'
         return filters
 
     @staticmethod
@@ -128,6 +141,14 @@ class BaseClient(object):
     def make_uri(identifier):
         """ Get identifier format for ontologies """
         return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+
+    def elem_class_instance(self, **data):
+        """
+        Get an item object from dedicated class expected object
+        :param data:
+        :return:
+        """
+        return self.elem_class(**data)
 
 
 class DetailClientMixin(BaseClient):
@@ -163,7 +184,7 @@ class DetailClientMixin(BaseClient):
                             return elem
                     logger.warning('Unable to fin item %s defined in an ontology', logger_id)
                 return None
-            return self.elem_class(**document.data)
+            return self.elem_class_instance(**document.data)
         except coreapi.exceptions.ErrorMessage as e:
             if 'status' in e.error:
                 if e.error['status'] == 404:
@@ -184,6 +205,7 @@ class ListClientMixin(BaseClient):
     _pages = None
     _len = None
     page_size = 1000
+    current_filters = {}
 
     def __init__(self, uri, elem_class, document=None, page_size=1000):
         """
@@ -192,20 +214,13 @@ class ListClientMixin(BaseClient):
         :param elem_class: the expected class items objects
         :param: coreapi.Document from api (used to avoid double call to api if already loade elsewhere
         """
-        super().__init__(uri, elem_class)
+        client_uri = document.url if document is not None else uri
+        super().__init__(client_uri, elem_class)
         self.document = document or self.client.get(uri, force_codec='hal')
         self.page_size = page_size
-        self.base_uri = document.url if document is not None else uri
+        # self.base_uri =
         self.index = 0
         logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
-
-    def elem_class_instance(self, **data):
-        """
-        Get an item object from dedicated class expected object
-        :param data:
-        :return:
-        """
-        return self.elem_class(**data)
 
     @retry_requests
     def __call__(self, filters=None, action=None):
@@ -217,16 +232,14 @@ class ListClientMixin(BaseClient):
             filters = {}
         else:
             try:
-                check_fn = getattr(self, 'filters_' + self.path)
+                check_fn = getattr(self, 'filters_' + self.path, None)
                 if callable(check_fn):
                     filters = check_fn(filters)
-            except AttributeError:
-                pass
             except AssertionError as e:
-                raise exceptions.BadParameter({'error': "Bad Request", 'message': str(e),
-                                               'status': 400, 'path': self.path, 'timestamp': time.time()})
+                raise exceptions.BadFilters(str(e))
             if 'size' in filters:
                 self.page_size = filters['size']
+        self.current_filters = filters
         params = {'page': 0, 'size': self.page_size}
         params.update(filters)
         path = action if action else self.path
@@ -243,7 +256,7 @@ class ListClientMixin(BaseClient):
         :return Document: fetched document from api
         """
         if params is None:
-            params = {}
+            params = self.current_filters
         logger.debug('Action on document %s/%s?%s', self.document.url, path,
                      '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
         self.document = self.client.action(self.document, [path], params=params, validate=False)
@@ -256,7 +269,7 @@ class ListClientMixin(BaseClient):
         :param page: expected page
         :return Document: fetched page document fro api
         """
-        uri = '/'.join([self.base_uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
+        uri = '/'.join([self.uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
         logger.debug('Fetch page "%s"', uri)
         self.document = self.client.get(uri, force_codec='hal')
         return self.document
@@ -329,7 +342,7 @@ class ListClientMixin(BaseClient):
 
         loaded = self.elem_class_instance(**self.data[self.index])
         self.index += 1
-        logger.debug('Loaded %s', loaded)
+        # logger.debug('Loaded %s', loaded)
         return loaded
 
     def __getitem__(self, item):
@@ -383,7 +396,7 @@ class SearchClientMixin(ListClientMixin):
     base_search_uri = ''
     path = 'response'
 
-    def __call__(self, filters=None, query=None):
+    def __call__(self, query=None, filters=None, **kwargs):
         """
 
         :param filters: filters to apply to search
@@ -393,8 +406,9 @@ class SearchClientMixin(ListClientMixin):
         if query is None:
             raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
                                            'status': 400, 'path': 'search', 'timestamp': time.time()})
-        self.query = query  #
-        return super().__call__(filters)
+        self.query = query
+        call_filters = filters or {key: value for key, value in kwargs.items()} or {}
+        return super().__call__(call_filters)
 
     def __len__(self):
         return self.document[self.path]['numFound']
@@ -452,18 +466,19 @@ class SearchClientMixin(ListClientMixin):
         :param params: search params
         :return: Document
         """
-        if params is None:
-            params = {}
+        params = params or self.current_filters
         params.pop('page', 0)
         params.pop('size', 0)
         start = 0 if path != 'next' else self.start + self.page_size
-        uri = '/'.join([site, 'search'])
+        uri = '/'.join([self.uri, 'search'])
         uri += '?q=' + self.query
         filters_uri = ''
         for filter_name, filter_value in params.items():
             logger.debug('Filter %s:%s', filter_name, filter_value)
-            filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
-        filters_uri += "&exact=on"
+            if isinstance(filter_value, set):
+                filters_uri += '&' + filter_name + '=' + ','.join(filter_value)
+            else:
+                filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
         uri += filters_uri
         self.base_search_uri = uri
         final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
@@ -481,5 +496,3 @@ class SearchClientMixin(ListClientMixin):
         self.document = self.client.get(uri, format='hal')
         logger.debug('Loaded page %s', self.document.url)
         return self.document
-
-

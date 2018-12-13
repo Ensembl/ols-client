@@ -19,8 +19,6 @@ from collections import namedtuple, OrderedDict
 import inflection
 from coreapi import Object
 
-from ebi.ols.api.base import ListClientMixin, site
-
 logger = logging.getLogger(__name__)
 
 
@@ -201,20 +199,21 @@ class Ontology(OLSHelper):
         return '<Ontology(ontology_id={}, title={}, namespace={}, updated={})>'.format(
             self.ontology_id, self.config.title, self.config.namespace, self.updated)
 
+    def __get_list_client(self, item_class):
+        from .client import ListClientMixin, OlsClient
+        return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
+
     def terms(self, filters=None):
         """ Links to ontology associated terms"""
-        client = ListClientMixin('/'.join([site, 'ontologies/' + self.ontology_id]), Term)
-        return client(filters=filters)
+        return self.__get_list_client(Term)(filters=filters)
 
     def individuals(self, filters=None):
         """ Links to ontology associated individuals """
-        client = ListClientMixin('/'.join([site, 'ontologies/' + self.ontology_id]), Individual)
-        return client(filters=filters)
+        return self.__get_list_client(Individual)(filters=filters)
 
     def properties(self, filters=None):
         """ Links to ontology associated properties"""
-        client = ListClientMixin('/'.join([site, 'ontologies/' + self.ontology_id]), Property)
-        return client(filters=filters)
+        return self.__get_list_client(Property)(filters=filters)
 
     @property
     def namespace(self):
@@ -243,6 +242,7 @@ class Ontology(OLSHelper):
 class TermAnnotation(OLSHelper):
     database_cross_reference = None
     has_obo_namespace = []
+    namespace = []
     has_alternative_id = []
     id = []
     alternative_term = []
@@ -282,19 +282,23 @@ class Term(OLSHelper, HasAccessionMixin):
 
     def __repr__(self):
         return '<Term(obo_id={}, name={}, ontology_id={}, namespace={} subsets={}, short_form={})>'.format(
-            self.obo_id, self.label, self.ontology_name, self.obo_name_space, self.in_subset, self.short_form)
+            self.obo_id, self.label, self.ontology_name, self.namespace, self.in_subset, self.short_form)
 
     @property
     def relations_types(self):
         if self._relations_types is None:
+            from .client import ListClientMixin, OlsClient
             client = ListClientMixin(
-                site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri), Term)
+                OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
+                Term)
             self._relations_types = [name for name in client.document.links.keys() if name not in ('graph', 'jstree')]
         return self._relations_types
 
     def load_relation(self, relation):
-        client = ListClientMixin(site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
-                                 Term)
+        from .client import ListClientMixin, OlsClient
+        client = ListClientMixin(
+            OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
+            Term)
         return client(action=relation)
 
     def graph(self):
@@ -305,9 +309,19 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def obo_name_space(self):
-        # print(self.annotation)
+        import warnings
+        warnings.warn(
+            "obo_name_space is deprecated, use namespace attribute instead",
+            DeprecationWarning
+        )
+        return self.namespace
+
+    @property
+    def namespace(self):
         if self.annotation.has_obo_namespace:
             return self.annotation.has_obo_namespace[0]
+        elif self.annotation.namespace:
+            return self.annotation.namespace[0]
         else:
             return self.ontology_name
 
