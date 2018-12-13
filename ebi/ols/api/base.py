@@ -96,7 +96,7 @@ class BaseClient(object):
             "Unauthorized filter key"
         if 'fieldList' in filters:
             if type(filters['fieldList']) is str:
-                assertion_set = set(filters['queryFields'].split(','))
+                assertion_set = set(filters['fieldList'].split(','))
             elif type(filters['fieldList'] is set):
                 assertion_set = filters['fieldList']
             assert assertion_set.issubset(
@@ -420,7 +420,7 @@ class SearchClientMixin(ListClientMixin):
         :return: mixed
         """
         import ebi.ols.api.helpers as helpers
-        type_item = kwargs.pop('type')
+        type_item = kwargs.pop('type', None)
         if type_item == 'property':
             return helpers.Property(**kwargs)
         elif type_item == 'individual':
@@ -478,7 +478,7 @@ class SearchClientMixin(ListClientMixin):
             if isinstance(filter_value, set):
                 filters_uri += '&' + filter_name + '=' + ','.join(filter_value)
             else:
-                filters_uri += '&' + filter_name + '=' + urllib.parse.quote_plus(filter_value)
+                filters_uri += '&' + filter_name + '=' + filter_value
         uri += filters_uri
         self.base_search_uri = uri
         final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
