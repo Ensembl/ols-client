@@ -17,9 +17,9 @@ import unittest
 import warnings
 
 import ebi.ols.api.exceptions
+import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
-import ebi.ols.api.exceptions as exceptions
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
@@ -142,6 +142,12 @@ class OntologyTestSuite(unittest.TestCase):
             self.assertEqual(term.accession, terms[current].accession)
             current += 1
         self.assertEqual(slice_terms[len(slice_terms) - 1], term_3)
+        with self.assertRaises(KeyError):
+            error_slice = terms[1:550]
+        with self.assertRaises(IndexError):
+            current = slice_terms[12555]
+        with self.assertRaises(TypeError):
+            current = slice_terms['12512']
 
     def test_list_filters(self):
         """
@@ -243,10 +249,25 @@ class OntologyTestSuite(unittest.TestCase):
         mixed = self.client.search(query='GO_0003698', ontology='go', obsoletes='true', type='term')
         found_obsolete = False
         for mix in mixed:
-            print(mix.is_obsolete)
             detailed = self.client.detail(ontology_name='go', iri=mix.iri, type=helpers.Term)
             found_obsolete = found_obsolete or (detailed.is_obsolete == 1)
         self.assertTrue(found_obsolete)
+
+        mixed = self.client.search(query='go', ontology='efo', fieldList='iri,label,short_form,obo_id')
+        self.assertGreater(len(mixed), 0)
+        mixed = self.client.search(query='goslim_metagenomics', type='property',
+                                   queryFields='label,logical_description,iri')
+        self.assertGreater(len(mixed), 0)
+        mixed = self.client.search(query='go', ontology='efo', fieldList={'iri', 'label', 'short_form', 'obo_id'})
+        self.assertGreater(len(mixed), 0)
+        print('nb pages ', mixed.pages)
+        for mix in mixed:
+            if mixed.page > 2:
+                break
+            self._checkMixed(mix)
+        mixed = self.client.search(query='goslim_metagenomics', ontology='go', type='property',
+                                   queryFields={'label', 'logical_description', 'iri'})
+        self.assertGreater(len(mixed), 0)
 
     def test_search_wrong_filters(self):
         with self.assertRaises(exceptions.BadFilters) as ex:
