@@ -351,11 +351,3 @@ class OntologyTestSuite(unittest.TestCase):
         h_term = helpers.Term(ontology_name='go', iri='http://purl.obolibrary.org/obo/GO_0005230')
         self.client.detail(h_term)
         self.assertIsNotNone(h_term.namespace)
-
-    def test_overwritten_site(self):
-        overriden_site = 'https://wwwdev.ebi.ac.uk/ols/api'
-        self.client = OlsClient(base_site=overriden_site)
-        ontology = self.client.ontology('phi')
-        self.assertTrue(self.client.ontology.uri.startswith(overriden_site))
-        terms = ontology.terms()
-        self.assertTrue(terms.uri.startswith(overriden_site))
