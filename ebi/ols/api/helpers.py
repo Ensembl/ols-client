@@ -251,6 +251,7 @@ class TermAnnotation(OLSHelper):
     example_of_usage = []
     term_editor = []
     term_tracker_item = []
+    definition = []
 
     def __repr__(self):
         return '<Term(id={}, has_obo_name_space={}, alternative_term={}, alt_id={})>'.format(
@@ -327,13 +328,16 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def description(self):
-        return self._description[0] if len(self._description) > 0 else ''
+        print(self._description, self.annotation.definition)
+        return self._description[0] if self._description else self.annotation.definition[0] if self.annotation.definition else ''
 
     @description.setter
     def description(self, value):
-        if value is None:
-            value = [self.label]
-        self._description = value
+        if value:
+            if getattr(value, '__iter__'):
+                self._description = value
+            else:
+                self._description = [value]
 
     @property
     def subsets(self):

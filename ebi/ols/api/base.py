@@ -179,11 +179,7 @@ class DetailClientMixin(BaseClient):
                 if not unique:
                     return elms
                 else:
-                    for elem in elms:
-                        if elem.is_defining_ontology:
-                            return elem
-                    logger.warning('Unable to fin item %s defined in an ontology', logger_id)
-                return None
+                    return next((x for x in elms if x.is_defining_ontology), elms[0])
             return self.elem_class_instance(**document.data)
         except coreapi.exceptions.ErrorMessage as e:
             if 'status' in e.error:
