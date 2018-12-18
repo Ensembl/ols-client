@@ -328,7 +328,6 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def description(self):
-        print(self._description, self.annotation.definition)
         return self._description[0] if self._description else self.annotation.definition[0] if self.annotation.definition else ''
 
     @description.setter
