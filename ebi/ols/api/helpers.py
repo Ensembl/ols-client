@@ -200,7 +200,7 @@ class Ontology(OLSHelper):
             self.ontology_id, self.config.title, self.config.namespace, self.updated)
 
     def __get_list_client(self, item_class):
-        from .client import ListClientMixin, OlsClient
+        from ebi.ols.api.client import ListClientMixin, OlsClient
         return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
 
     def terms(self, filters=None):
@@ -328,7 +328,6 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def description(self):
-        print(self._description, self.annotation.definition)
         return self._description[0] if self._description else self.annotation.definition[0] if self.annotation.definition else ''
 
     @description.setter
