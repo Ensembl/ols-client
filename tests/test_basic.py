@@ -21,7 +21,7 @@ import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.WARNING,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
                     datefmt='%m-%d %H:%M:%S')
 
@@ -359,3 +359,28 @@ class OntologyTestSuite(unittest.TestCase):
         o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
                                     ontology_name='mondo', type=helpers.Term)
         self.assertEqual(o_term.description, o_term.annotation.definition[0])
+
+    def test_properties_retrieval(self):
+        subsets = ['goantislim_grouping',
+                   'gocheck_do_not_annotate',
+                   'gocheck_do_not_manually_annotate',
+                   'goslim_agr',
+                   'goslim_aspergillus',
+                   'goslim_candida',
+                   'goslim_chembl',
+                   'goslim_generic',
+                   'goslim_metagenomics',
+                   'goslim_mouse',
+                   'goslim_pir',
+                   'goslim_plant',
+                   'goslim_pombe',
+                   'goslim_synapse',
+                   'goslim_virus',
+                   'goslim_yeast',
+                   'gosubset_prok']
+
+        s_subsets = self.client.search(query=','.join(subsets), type='property')
+        for subset in s_subsets:
+            s_subset = self.client.property(identifier=subset.iri)
+            self.assertNotEqual(s_subset.definition, s_subset.label)
+

@@ -366,17 +366,24 @@ class Individual(OLSHelper, HasAccessionMixin):
             self.label, self.ontology_name, self.iri, self.short_form, self.obo_id)
 
 
+class PropertyAnnotation(OLSHelper):
+    comment = []
+
+
 class Property(OLSHelper, HasAccessionMixin):
     path = 'properties'
     annotation = None
     synonyms = None
     label = None
-    description = None
     ontology_name = None
     ontology_prefix = None
     ontology_iri = None
     has_children = None
     is_root = None
+
+    def __init__(self, **kwargs):
+        annotation = PropertyAnnotation(**kwargs.pop("annotation", {}))
+        super().__init__(annotation=annotation, **kwargs)
 
     def __repr__(self):
         return '<Property(label={}, iri={}, ontology_name={}, short_form={}, obo_id={})>'.format(
@@ -384,4 +391,4 @@ class Property(OLSHelper, HasAccessionMixin):
 
     @property
     def definition(self):
-        return self.description
+        return self.annotation.comment[0] if hasattr(self.annotation, 'comment') else self.label
