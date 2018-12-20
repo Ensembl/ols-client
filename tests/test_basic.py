@@ -260,7 +260,6 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertGreater(len(mixed), 0)
         mixed = self.client.search(query='go', ontology='efo', fieldList={'iri', 'label', 'short_form', 'obo_id'})
         self.assertGreater(len(mixed), 0)
-        print('nb pages ', mixed.pages)
         for mix in mixed:
             if mixed.page > 2:
                 break
@@ -311,7 +310,8 @@ class OntologyTestSuite(unittest.TestCase):
         properties = self.client.search(query='goslim_yeast', filters={'ontology': 'go', 'type': 'property'})
         for prop in properties:
             details = self.client.detail(ontology_name='go', iri=prop.iri, type=helpers.Property)
-            print(details)
+            self.assertIsNotNone(details)
+            self.assertIsNotNone(details.label)
 
     def test_accessions(self):
         accessions = ['TopObjectProperty', 'SubsetProperty', 'ObsoleteClass']
@@ -351,3 +351,38 @@ class OntologyTestSuite(unittest.TestCase):
         h_term = helpers.Term(ontology_name='go', iri='http://purl.obolibrary.org/obo/GO_0005230')
         self.client.detail(h_term)
         self.assertIsNotNone(h_term.namespace)
+
+    def test_term_definition(self):
+        h_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0020003",
+                                    ontology_name='mondo', type=helpers.Term)
+        self.assertEqual('', h_term.description)
+        o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
+                                    ontology_name='mondo', type=helpers.Term)
+        self.assertEqual(o_term.description, o_term.annotation.definition[0])
+
+    def test_properties_retrieval(self):
+        subsets = ['goantislim_grouping',
+                   'gocheck_do_not_annotate',
+                   'gocheck_do_not_manually_annotate',
+                   'goslim_agr',
+                   'goslim_aspergillus',
+                   'goslim_candida',
+                   'goslim_chembl',
+                   'goslim_generic',
+                   'goslim_mouse',
+                   'goslim_pir',
+                   'goslim_plant',
+                   'goslim_pombe',
+                   'goslim_synapse',
+                   'goslim_virus',
+                   'goslim_yeast',
+                   'gosubset_prok']
+
+        s_subsets = self.client.search(query=','.join(subsets), type='property')
+        seen = set()
+        unique_subsets = [x for x in s_subsets if
+                          x.short_form.lower() not in seen and not seen.add(x.short_form.lower())]
+        self.assertEqual(len(unique_subsets), len(subsets))
+        for subset in unique_subsets:
+            s_subset = self.client.property(identifier=subset.iri)
+            self.assertNotEqual(s_subset.definition, s_subset.label)

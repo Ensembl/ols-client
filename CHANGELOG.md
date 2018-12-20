@@ -70,3 +70,9 @@ v1.0.6
 - Added kwargs parameters parsing in Search allowing now client.search(query='tada',type='property',...)
 - Fixed Search Filtering issues
  
+ v1.0.8
+ ------
+  
+ - Added extra way to retrieve term definition if not set under description (retrieve from annotation)
+ - When searching for a detailed item (such as property), return the first 'in defining ontology' or first one if not found
+ - Added PropertyAnnotation parsing

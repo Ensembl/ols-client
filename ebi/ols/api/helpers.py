@@ -200,7 +200,7 @@ class Ontology(OLSHelper):
             self.ontology_id, self.config.title, self.config.namespace, self.updated)
 
     def __get_list_client(self, item_class):
-        from .client import ListClientMixin, OlsClient
+        from ebi.ols.api.client import ListClientMixin, OlsClient
         return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
 
     def terms(self, filters=None):
@@ -251,6 +251,7 @@ class TermAnnotation(OLSHelper):
     example_of_usage = []
     term_editor = []
     term_tracker_item = []
+    definition = []
 
     def __repr__(self):
         return '<Term(id={}, has_obo_name_space={}, alternative_term={}, alt_id={})>'.format(
@@ -327,13 +328,15 @@ class Term(OLSHelper, HasAccessionMixin):
 
     @property
     def description(self):
-        return self._description[0] if len(self._description) > 0 else ''
+        return self._description[0] if self._description else self.annotation.definition[0] if self.annotation.definition else ''
 
     @description.setter
     def description(self, value):
-        if value is None:
-            value = [self.label]
-        self._description = value
+        if value:
+            if getattr(value, '__iter__'):
+                self._description = value
+            else:
+                self._description = [value]
 
     @property
     def subsets(self):
@@ -363,17 +366,24 @@ class Individual(OLSHelper, HasAccessionMixin):
             self.label, self.ontology_name, self.iri, self.short_form, self.obo_id)
 
 
+class PropertyAnnotation(OLSHelper):
+    comment = []
+
+
 class Property(OLSHelper, HasAccessionMixin):
     path = 'properties'
     annotation = None
     synonyms = None
     label = None
-    description = None
     ontology_name = None
     ontology_prefix = None
     ontology_iri = None
     has_children = None
     is_root = None
+
+    def __init__(self, **kwargs):
+        annotation = PropertyAnnotation(**kwargs.pop("annotation", {}))
+        super().__init__(annotation=annotation, **kwargs)
 
     def __repr__(self):
         return '<Property(label={}, iri={}, ontology_name={}, short_form={}, obo_id={})>'.format(
@@ -381,4 +391,4 @@ class Property(OLSHelper, HasAccessionMixin):
 
     @property
     def definition(self):
-        return self.description
+        return self.annotation.comment[0] if self.annotation.comment else self.label
