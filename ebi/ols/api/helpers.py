@@ -391,4 +391,4 @@ class Property(OLSHelper, HasAccessionMixin):
 
     @property
     def definition(self):
-        return self.annotation.comment[0] if hasattr(self.annotation, 'comment') else self.label
+        return self.annotation.comment[0] if self.annotation.comment else self.label

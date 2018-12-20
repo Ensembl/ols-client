@@ -367,7 +367,6 @@ class ListClientMixin(BaseClient):
         elif isinstance(item, int):
             page = item // self.page_size
             index = item % self.page_size
-            logger.debug('Current page %s. %s translated to %s in page %s', self.page, item, index, page)
             if page != self.page:
                 self.fetch_page(page)
                 self.index = index

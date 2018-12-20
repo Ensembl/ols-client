@@ -21,7 +21,7 @@ import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient
 
-logging.basicConfig(level=logging.WARNING,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
                     datefmt='%m-%d %H:%M:%S')
 
@@ -369,7 +369,6 @@ class OntologyTestSuite(unittest.TestCase):
                    'goslim_candida',
                    'goslim_chembl',
                    'goslim_generic',
-                   'goslim_metagenomics',
                    'goslim_mouse',
                    'goslim_pir',
                    'goslim_plant',
@@ -380,7 +379,10 @@ class OntologyTestSuite(unittest.TestCase):
                    'gosubset_prok']
 
         s_subsets = self.client.search(query=','.join(subsets), type='property')
-        for subset in s_subsets:
+        seen = set()
+        unique_subsets = [x for x in s_subsets if
+                          x.short_form.lower() not in seen and not seen.add(x.short_form.lower())]
+        self.assertEqual(len(unique_subsets), len(subsets))
+        for subset in unique_subsets:
             s_subset = self.client.property(identifier=subset.iri)
             self.assertNotEqual(s_subset.definition, s_subset.label)
-
