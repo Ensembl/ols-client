@@ -240,11 +240,11 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(len(clazz), 1)
         clazz = []
         # only terms and properties
-        mixed = self.client.search(query='go', ontology='efo')
+        mixed = self.client.search(query='date', ontology='efo')
         self.assertGreater(len(mixed), 1)
         for mix in mixed:
             clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
-        self.assertEqual(len(clazz), 2)
+        self.assertGreaterEqual(len(clazz), 2)
         # test obsoletes
         mixed = self.client.search(query='GO_0003698', ontology='go', obsoletes='true', type='term')
         found_obsolete = False
@@ -358,6 +358,7 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual('', h_term.description)
         o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
                                     ontology_name='mondo', type=helpers.Term)
+        print(o_term.description, o_term.annotation.definition[0])
         self.assertEqual(o_term.description, o_term.annotation.definition[0])
 
     def test_properties_retrieval(self):

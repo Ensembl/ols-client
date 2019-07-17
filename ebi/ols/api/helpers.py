@@ -240,10 +240,6 @@ class Ontology(OLSHelper):
 
 
 class TermAnnotation(OLSHelper):
-    database_cross_reference = None
-    has_obo_namespace = []
-    namespace = []
-    has_alternative_id = []
     id = []
     alternative_term = []
     definition_source = []
@@ -251,11 +247,21 @@ class TermAnnotation(OLSHelper):
     example_of_usage = []
     term_editor = []
     term_tracker_item = []
-    definition = []
+    database_cross_reference = None
+    has_obo_namespace = []
+    namespace = []
+    has_alternative_id = []
+    has_related_synonyms = []
+    xref = []
+    property_value = []
 
     def __repr__(self):
         return '<Term(id={}, has_obo_name_space={}, alternative_term={}, alt_id={})>'.format(
             self.id, self.has_obo_namespace, self.alternative_term, self.has_alternative_id)
+
+    @property
+    def definition(self):
+        return getattr(self, 'def') if hasattr(self, 'def') else []
 
 
 class Term(OLSHelper, HasAccessionMixin):
