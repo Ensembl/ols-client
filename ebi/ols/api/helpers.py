@@ -116,7 +116,8 @@ class OLSHelper(object):
 
     def __init__(self, **kwargs):
         converted = convert_keys(kwargs)
-        [self.__setattr__(name, to_python_value(value)) for name, value in converted.items()]
+        for name, value in converted.items():
+            self.__setattr__(name, to_python_value(value))
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
@@ -262,6 +263,14 @@ class TermAnnotation(OLSHelper):
     @property
     def definition(self):
         return getattr(self, 'def') if hasattr(self, 'def') else []
+
+    @definition.setter
+    def definition(self, value):
+        if value:
+            if getattr(value, '__iter__'):
+                self.__setattr__('def', value)
+            else:
+                self.__setattr__('def', [value])
 
 
 class Term(OLSHelper, HasAccessionMixin):
