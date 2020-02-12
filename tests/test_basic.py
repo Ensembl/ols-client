@@ -15,6 +15,7 @@
 import logging
 import unittest
 import warnings
+import os
 
 import ebi.ols.api.exceptions
 import ebi.ols.api.exceptions as exceptions
@@ -37,8 +38,50 @@ def ignore_warnings(test_func):
     return do_test
 
 
-class OntologyTestSuite(unittest.TestCase):
+class OntologyTestRemote(unittest.TestCase):
+    """Tests that requires access to www.ebi.ac.uk"""
+
+    def setUp(self):
+        warnings.simplefilter("ignore", ResourceWarning)
+        self.client = OlsClient(base_site='https://www.ebi.ac.uk/ols/api', page_size=100)
+
+    def test_term_definition(self):
+        o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
+                                    ontology_name='mondo', type=helpers.Term)
+        self.assertEqual(o_term.description, o_term.annotation.definition[0])
+
+    def test_properties_retrieval(self):
+        subsets = ['goantislim_grouping',
+                   'gocheck_do_not_annotate',
+                   'gocheck_do_not_manually_annotate',
+                   'goslim_agr',
+                   'goslim_aspergillus',
+                   'goslim_candida',
+                   'goslim_chembl',
+                   'goslim_generic',
+                   'goslim_mouse',
+                   'goslim_pir',
+                   'goslim_plant',
+                   'goslim_pombe',
+                   'goslim_synapse',
+                   'goslim_virus',
+                   'goslim_yeast',
+                   'gosubset_prok']
+
+        s_subsets = self.client.search(query=','.join(subsets), type='property')
+        seen = set()
+        unique_subsets = [x for x in s_subsets if
+                          x.short_form.lower() not in seen and not seen.add(x.short_form.lower())]
+        self.assertEqual(len(unique_subsets), len(subsets))
+        for subset in unique_subsets:
+            s_subset = self.client.property(identifier=subset.iri)
+            self.assertNotEqual(s_subset.definition, s_subset.label)
+
+
+class OntologyTestBasic(unittest.TestCase):
     """Basic test cases."""
+
+    ols_api_url = os.getenv('OLS_API_URL', 'http://localhost:8080/api')
 
     def _checkOntology(self, ontology):
         self.assertIsInstance(ontology, helpers.Ontology)
@@ -67,7 +110,7 @@ class OntologyTestSuite(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter("ignore", ResourceWarning)
-        self.client = OlsClient(page_size=100)
+        self.client = OlsClient(base_site=self.ols_api_url, page_size=100)
 
     def test_ontologies_list(self):
         # standard first page
@@ -75,18 +118,18 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(ontologies.page_size, self.client.page_size)
         total_pages = ontologies.pages
         current = 0
-        num_pages = 0
+        num_pages = 1
         test_item = None
         for ontology in ontologies:
-            if current == 185:
+            if current == 1:
                 test_item = ontology
             self._checkOntology(ontology)
-            current = current + 1
+            current += 1
             if current % ontologies.page_size == 0:
                 num_pages += 1
-        item = ontologies[185]
+        item = ontologies[1]
         self.assertEqual(test_item, item)
-        self.assertEqual(ontologies.page, len(ontologies) // ontologies.page_size - 1)
+        self.assertEqual(ontologies.page, len(ontologies) // ontologies.page_size)
         self.assertEqual(total_pages, num_pages)
         self.assertEqual(current, len(ontologies))
         self.assertEqual(num_pages, ontologies.pages)
@@ -136,13 +179,13 @@ class OntologyTestSuite(unittest.TestCase):
         term_3 = terms[252]
 
         self.assertEqual(230, len(slice_terms))
-        self.assertGreaterEqual(454, len(terms))
+        self.assertGreaterEqual(480, len(terms))
         current = 23
         for term in slice_terms:
             self.assertEqual(term.accession, terms[current].accession)
             current += 1
-        self.assertEqual(slice_terms[len(slice_terms) - 1], term_3)
-        with self.assertRaises(KeyError):
+        self.assertEqual(slice_terms[-1], term_3)
+        with self.assertRaises(IndexError):
             error_slice = terms[1:550]
         with self.assertRaises(IndexError):
             current = slice_terms[12555]
@@ -154,24 +197,24 @@ class OntologyTestSuite(unittest.TestCase):
         Test ontology terms api filtering options
         :return:
         """
-        filters = {'short_form': 'EFO_0000405'}
-        ontology = self.client.ontology('efo')
+        filters = {'short_form': 'DUO_0000024'}
+        ontology = self.client.ontology('duo')
         ontologies = self.client.ontologies(filters={'fake_filter': 'fake_value'})
 
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.short_form, 'EFO_0000405')
-        filters = {'obo_id': 'EFO:0000405'}
+            self.assertEqual(term.short_form, 'DUO_0000024')
+        filters = {'obo_id': 'DUO:0000024'}
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.obo_id, 'EFO:0000405')
+            self.assertEqual(term.obo_id, 'DUO:0000024')
 
-        filters = {'iri': 'http://www.ebi.ac.uk/efo/EFO_1000838'}
+        filters = {'iri': 'http://purl.obolibrary.org/obo/DUO_0000017'}
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.short_form, 'EFO_1000838')
-            self.assertEqual(term.obo_id, 'EFO:1000838')
-            self.assertEqual(term.iri, 'http://www.ebi.ac.uk/efo/EFO_1000838')
+            self.assertEqual(term.short_form, 'DUO_0000017')
+            self.assertEqual(term.obo_id, 'DUO:0000017')
+            self.assertEqual(term.iri, 'http://purl.obolibrary.org/obo/DUO_0000017')
 
     def test_terms(self):
         """
@@ -179,39 +222,39 @@ class OntologyTestSuite(unittest.TestCase):
         Should warn that test may be long according to the nnumber of terms involved
         :return:
         """
-        term_1 = helpers.Term(ontology_name='cco', iri='http://semanticscience.org/resource/SIO_010043')
+        term_1 = helpers.Term(ontology_name='duo', iri='http://purl.obolibrary.org/obo/DUO_0000026')
         ancestors = term_1.load_relation('ancestors')
         for ancestor in ancestors:
             self._checkTerm(ancestor)
         self._checkTerm(term_1)
 
     def test_dynamic_links(self):
-        term = helpers.Term(ontology_name='so', iri='http://purl.obolibrary.org/obo/SO_0000104')
+        term = helpers.Term(ontology_name='aero', iri='http://purl.obolibrary.org/obo/IAO_0000630')
         for relation in term.relations_types:
             related = term.load_relation(relation)
             if related:
                 self._checkTerms(related)
-        self.assertIn('derives_from', term.relations_types)
-        term = helpers.Term(ontology_name='efo', iri='http://www.ebi.ac.uk/efo/EFO_0004799')
-        self.assertIn('has_disease_location', term.relations_types)
+        self.assertIn('has_part', term.relations_types)
+        term = helpers.Term(ontology_name='aero', iri='http://purl.obolibrary.org/obo/IAO_0000314')
+        self.assertIn('part_of', term.relations_types)
 
     def test_search_simple(self):
         """
         Test Basic, simple query param
         """
         # test search engine for terms
-        results = self.client.search(query='gene_ontology')
-        self.assertGreaterEqual(len(results), 15)
+        results = self.client.search(query='gene')
+        self.assertGreaterEqual(len(results), 8)
         i = 0
         for term in results:
-            if i == 14:
+            if i == 7:
                 term_2 = term
                 term_3 = self.client.detail(term)
                 self._checkMixed(term_3)
             i += 1
 
         self._checkTerms(results)
-        term_1 = results[14]
+        term_1 = results[7]
         self.assertEqual(term_2, term_1)
 
     def test_search_filters(self):
@@ -232,7 +275,7 @@ class OntologyTestSuite(unittest.TestCase):
         Test Search feature : - kwargs passed
         """
         mixed = self.client.search(query='go', type='property')
-        self.assertGreaterEqual(len(mixed), 500)
+        self.assertEqual(len(mixed), 3)
 
         clazz = []
         for mix in mixed:
@@ -240,49 +283,49 @@ class OntologyTestSuite(unittest.TestCase):
         self.assertEqual(len(clazz), 1)
         clazz = []
         # only terms and properties
-        mixed = self.client.search(query='date', ontology='efo')
+        mixed = self.client.search(query='date', ontology='aero')
         self.assertGreater(len(mixed), 1)
         for mix in mixed:
             clazz.append(mix.__class__.__name__) if mix.__class__.__name__ not in clazz else None
         self.assertGreaterEqual(len(clazz), 2)
         # test obsoletes
-        mixed = self.client.search(query='GO_0003698', ontology='go', obsoletes='true', type='term')
-        found_obsolete = False
+        mixed = self.client.search(query='BFO_0000005', ontology='aero', obsoletes='true', type='term')
+        self.assertGreaterEqual(len(mixed), 1)
         for mix in mixed:
-            detailed = self.client.detail(ontology_name='go', iri=mix.iri, type=helpers.Term)
-            found_obsolete = found_obsolete or (detailed.is_obsolete == 1)
-        self.assertTrue(found_obsolete)
+            detailed = self.client.detail(ontology_name='aero', iri=mix.iri, type=helpers.Term)
+            found_obsolete = detailed.is_obsolete == 1
+        self.assertEqual(found_obsolete, True)
 
-        mixed = self.client.search(query='go', ontology='efo', fieldList='iri,label,short_form,obo_id')
+        mixed = self.client.search(query='gene', ontology='aero', fieldList='iri,label,short_form,obo_id')
         self.assertGreater(len(mixed), 0)
-        mixed = self.client.search(query='goslim_metagenomics', type='property',
+        mixed = self.client.search(query='involves', type='property',
                                    queryFields='label,logical_description,iri')
         self.assertGreater(len(mixed), 0)
-        mixed = self.client.search(query='go', ontology='efo', fieldList={'iri', 'label', 'short_form', 'obo_id'})
+        mixed = self.client.search(query='go', ontology='aero', fieldList={'iri', 'label', 'short_form', 'obo_id'})
         self.assertGreater(len(mixed), 0)
         for mix in mixed:
             if mixed.page > 2:
                 break
             self._checkMixed(mix)
-        mixed = self.client.search(query='goslim_metagenomics', ontology='go', type='property',
+        mixed = self.client.search(query='definition', ontology='duo', type='property',
                                    queryFields={'label', 'logical_description', 'iri'})
         self.assertGreater(len(mixed), 0)
 
     def test_search_wrong_filters(self):
         with self.assertRaises(exceptions.BadFilters) as ex:
-            self.client.search(query='go', type='property,unknown', ontology='efo')
+            self.client.search(query='go', type='property,unknown', ontology='aero')
             self.assertIn('type', ex.message)
         with self.assertRaises(exceptions.BadFilters) as ex:
-            self.client.search(query='go', type='property,term', ontology='efo', obsoletes='totototo')
+            self.client.search(query='go', type='property,term', ontology='duo', obsoletes='totototo')
             self.assertIn('obsoletes', ex.message)
         with self.assertRaises(exceptions.BadFilters) as ex:
-            self.client.search(query='go', ontology='efo', local='1')
+            self.client.search(query='go', ontology='aero', local='1')
             self.assertIn('local', ex.message)
         with self.assertRaises(exceptions.BadFilters) as ex:
-            self.client.search(query='go', ontology='efo', fieldList={'iri', 'label', 'wrong_short_form', 'obo_id'})
+            self.client.search(query='go', ontology='aero', fieldList={'iri', 'label', 'wrong_short_form', 'obo_id'})
             self.assertIn('fieldList', ex.message)
         with self.assertRaises(exceptions.BadFilters) as ex:
-            self.client.search(query='go', ontology='efo', queryFields={'label', 'logical_description_wrong', 'iri'})
+            self.client.search(query='go', ontology='duo', queryFields={'label', 'logical_description_wrong', 'iri'})
             self.assertIn('queryFields', ex.message)
 
     def test_individuals(self):
@@ -292,16 +335,16 @@ class OntologyTestSuite(unittest.TestCase):
 
     def test_reverse_range(self):
         ontologies = self.client.ontologies()
-        sliced = ontologies[158:110]
-        self.assertEqual(len(sliced), 48)
-        i = 158
+        sliced = ontologies[2:0]
+        self.assertEqual(len(sliced), 2)
+        i = 1
         for ontology in sliced:
             self.assertEqual(ontology.ontology_id, ontologies[i].ontology_id)
             i -= 1
 
-        sliced = ontologies[185:210]
-        self.assertEqual(len(sliced), 25)
-        i = 185
+        sliced = ontologies[0:2]
+        self.assertEqual(len(sliced), 2)
+        i = 0
         for ontology in sliced:
             self.assertEqual(ontology.ontology_id, ontologies[i].ontology_id)
             i += 1
@@ -343,47 +386,17 @@ class OntologyTestSuite(unittest.TestCase):
 
     def test_namespace(self):
         # retrieved from namespace annotation
-        h_term = helpers.Term(ontology_name='phi', iri='http://purl.obolibrary.org/obo/PHI_2000021')
+        h_term = helpers.Term(ontology_name='aero', iri='http://purl.obolibrary.org/obo/IAO_0000314')
         self.client.detail(h_term)
-        self.assertIsNotNone(h_term.namespace)
+        self.assertEqual(h_term.namespace, 'aero')
 
         # retrieved from obo_name_space annotation
-        h_term = helpers.Term(ontology_name='go', iri='http://purl.obolibrary.org/obo/GO_0005230')
+        h_term = helpers.Term(ontology_name='duo', iri='http://purl.obolibrary.org/obo/DUO_0000017')
         self.client.detail(h_term)
-        self.assertIsNotNone(h_term.namespace)
+        self.assertEqual(h_term.namespace, 'duo')
 
-    def test_term_definition(self):
-        h_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0020003",
-                                    ontology_name='mondo', type=helpers.Term)
+    def test_term_description(self):
+        h_term = self.client.detail(iri="http://www.w3.org/2002/07/owl#Thing",
+                                    ontology_name='duo', type=helpers.Term)
         self.assertEqual('', h_term.description)
-        o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
-                                    ontology_name='mondo', type=helpers.Term)
-        print(o_term.description, o_term.annotation.definition[0])
-        self.assertEqual(o_term.description, o_term.annotation.definition[0])
 
-    def test_properties_retrieval(self):
-        subsets = ['goantislim_grouping',
-                   'gocheck_do_not_annotate',
-                   'gocheck_do_not_manually_annotate',
-                   'goslim_agr',
-                   'goslim_aspergillus',
-                   'goslim_candida',
-                   'goslim_chembl',
-                   'goslim_generic',
-                   'goslim_mouse',
-                   'goslim_pir',
-                   'goslim_plant',
-                   'goslim_pombe',
-                   'goslim_synapse',
-                   'goslim_virus',
-                   'goslim_yeast',
-                   'gosubset_prok']
-
-        s_subsets = self.client.search(query=','.join(subsets), type='property')
-        seen = set()
-        unique_subsets = [x for x in s_subsets if
-                          x.short_form.lower() not in seen and not seen.add(x.short_form.lower())]
-        self.assertEqual(len(unique_subsets), len(subsets))
-        for subset in unique_subsets:
-            s_subset = self.client.property(identifier=subset.iri)
-            self.assertNotEqual(s_subset.definition, s_subset.label)
