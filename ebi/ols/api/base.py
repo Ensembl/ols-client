@@ -141,7 +141,7 @@ class BaseClient(object):
     @staticmethod
     def make_uri(identifier):
         """ Get identifier format for ontologies """
-        return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+        return urllib.parse.quote_plus(urllib.parse.quote_plus(str(identifier)))
 
     def elem_class_instance(self, **data):
         """
