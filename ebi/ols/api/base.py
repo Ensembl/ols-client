@@ -391,7 +391,13 @@ class ListClientMixin(BaseClient):
         """ String repr of list
         :return str
         """
-        return self.__class__.__name__ + '([' + ', '.join([repr(self.elem_class_instance(**data)) for data in self.data]) + '])'
+        elements_string = ', '.join([repr(self.elem_class_instance(**data)) for data in self.data])
+        dots = '...' if self.pages > 1 else ''
+        return '{}(page: {}, pages: {}, [{}{}])'.format(self.__class__.__name__,
+                                                        self.page,
+                                                        self.pages,
+                                                        elements_string,
+                                                        dots)
 
 
 class SearchClientMixin(ListClientMixin):
