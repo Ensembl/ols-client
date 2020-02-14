@@ -275,7 +275,7 @@ class OntologyTestBasic(unittest.TestCase):
         Test Search feature : - kwargs passed
         """
         mixed = self.client.search(query='go', type='property')
-        self.assertEqual(len(mixed), 3)
+        self.assertEqual(len(mixed), 4)
 
         clazz = []
         for mix in mixed:
