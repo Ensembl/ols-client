@@ -13,11 +13,12 @@
    limitations under the License.
 """
 import logging
-import urllib.parse
-import os
-import coreapi.exceptions
 import math
+import os
 import time
+import urllib.parse
+
+import coreapi.exceptions
 from coreapi import Client, codecs
 from hal_codec import HALCodec as OriginCodec
 from hal_codec import _parse_document as HALParseDocument
@@ -34,7 +35,7 @@ def retry_requests(api_func):
     """
     Decorator for retrying calls to API in case of Network issues
     :param api_func: Api client function to call
-    :return:
+    :return: void
     """
     from itertools import chain
 
@@ -75,7 +76,7 @@ class HALCodec(OriginCodec):
     format = 'hal'
 
 
-class BaseClient(object):
+class BaseClient:
     decoders = [HALCodec(), codecs.JSONCodec()]
 
     def __init__(self, uri, elem_class):
@@ -111,7 +112,7 @@ class BaseClient(object):
                 assertion_set = filters['queryFields']
             assert assertion_set.issubset(
                 {'annotations', 'description', 'iri', 'label', 'logical_description', 'obo_id', 'short_form', 'synonym'}
-                ), "Wrong queryFields - check OLS doc"
+            ), "Wrong queryFields - check OLS doc"
         if 'type' in filters:
             if type(filters['type']) is str:
                 assertion_set = set(filters['type'].split(','))
@@ -160,7 +161,7 @@ class DetailClientMixin(BaseClient):
 
     @retry_requests
     def __call__(self, identifier, silent=True, unique=True):
-        """ Check one element from OLS API accroding to specified identifier
+        """ Check one element from OLS API according to specified identifier
         In cas API returns multiple element return either:
         - the one which is defining_ontology (flag True)
         - The first one if none (Should not happen)
@@ -206,13 +207,15 @@ class ListClientMixin(BaseClient):
     page_size = 1000
     current_filters = {}
 
-    def __init__(self, uri, elem_class, document=None, page_size=1000, filters={}, index=0):
+    def __init__(self, uri, elem_class, document=None, page_size=1000, filters=None, index=0):
         """
         Initialize a list object
         :param uri: the OLS api base source uri
         :param elem_class: the expected class items objects
         :param: coreapi.Document from api (used to avoid double call to api if already loade elsewhere
         """
+        if filters is None:
+            filters = {}
         self.current_filters = filters
         client_uri = document.url if document is not None else uri
         super().__init__(client_uri, elem_class)
@@ -222,11 +225,13 @@ class ListClientMixin(BaseClient):
         logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
 
     @retry_requests
-    def __call__(self, filters={}, action=None):
+    def __call__(self, filters=None, action=None):
         """
         Allow to search for a list of helpers, retrieve self, wich is now a iterator on the actual list of related
         helpers
         """
+        if filters is None:
+            filters = {}
         page_size = self.page_size
         if filters:
             try:
@@ -245,13 +250,17 @@ class ListClientMixin(BaseClient):
         return obj
 
     @retry_requests
-    def fetch_document(self, path, params=None, filters={}, base_document=None):
+    def fetch_document(self, path, params=None, filters=None, base_document=None):
         """
         Fetch coreapi.Document object fro specified path (based on current loaded document fro base uri
+        :param base_document: initial document
+        :param filters: filters to apply
         :param path: related path
         :param params: call params / filters
         :return Document: fetched document from api
         """
+        if filters is None:
+            filters = {}
         if params is None:
             params = filters or self.current_filters
         if base_document is None:
@@ -260,6 +269,7 @@ class ListClientMixin(BaseClient):
                      '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
         document = self.client.action(base_document, path, params=params, validate=False)
         if not isinstance(document, coreapi.document.Document):
+            logger.warning('Action did not receive a Document object %s', document.data)
             document = HALParseDocument(document)
         return document
 
@@ -407,13 +417,15 @@ class SearchClientMixin(ListClientMixin):
     """
     path = 'response'
 
-    def __call__(self, query=None, filters={}, **kwargs):
+    def __call__(self, query=None, filters=None, **kwargs):
         """
 
         :param filters: filters to apply to search
         :param query: searched string
         :return: a list of mixed items (individuals, ontologies, terms, properties)
         """
+        if filters is None:
+            filters = {}
         if query is None:
             raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
                                            'status': 400, 'path': 'search', 'timestamp': time.time()})
@@ -442,8 +454,6 @@ class SearchClientMixin(ListClientMixin):
             return helpers.Ontology(**kwargs)
         else:
             return helpers.Term(**kwargs)
-
-    # TODO elem_class as property
 
     def _get_start(self, document):
         return document[self.path]['start']
@@ -483,7 +493,9 @@ class SearchClientMixin(ListClientMixin):
         """
         return self._get_data(self.path, self.document)
 
-    def _get_base_uri(self, params=None, filters={}):
+    def _get_base_uri(self, params=None, filters=None):
+        if filters is None:
+            filters = {}
         if params is None:
             params = filters or self.current_filters
         params.pop('page', 0)
@@ -504,6 +516,8 @@ class SearchClientMixin(ListClientMixin):
     def fetch_document(self, path, params=None, filters={}, base_document=None):
         """
         Fetch current search elements
+        :param base_document:
+        :param filters:
         :param path: the uri relative path
         :param params: search params
         :return: Document
