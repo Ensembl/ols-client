@@ -13,9 +13,9 @@
    limitations under the License.
 """
 import logging
+import os
 import unittest
 import warnings
-import os
 
 import ebi.ols.api.exceptions
 import ebi.ols.api.exceptions as exceptions
@@ -253,7 +253,6 @@ class OntologyTestBasic(unittest.TestCase):
                 self._checkMixed(term_3)
             i += 1
 
-        self._checkTerms(results)
         term_1 = results[7]
         self.assertEqual(term_2, term_1)
 
@@ -275,7 +274,7 @@ class OntologyTestBasic(unittest.TestCase):
         Test Search feature : - kwargs passed
         """
         mixed = self.client.search(query='go', type='property')
-        self.assertEqual(len(mixed), 4)
+        self.assertEqual(len(mixed), 13)
 
         clazz = []
         for mix in mixed:
@@ -399,4 +398,3 @@ class OntologyTestBasic(unittest.TestCase):
         h_term = self.client.detail(iri="http://www.w3.org/2002/07/owl#Thing",
                                     ontology_name='duo', type=helpers.Term)
         self.assertEqual('', h_term.description)
-

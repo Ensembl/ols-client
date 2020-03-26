@@ -89,6 +89,8 @@ class BaseClient:
         self.uri = uri
         self.elem_class = elem_class
 
+    # TODO
+
     @staticmethod
     def filters_response(filters):
         """ Filters queries for search"""
@@ -171,9 +173,11 @@ class DetailClientMixin(BaseClient):
         logger_id = '[identifier:{}, path:{}]'.format(iri, path)
         logger.debug('Detail client %s [silent:%s, unique:%s]', logger_id, silent, unique)
         try:
-            document = self.client.get(path)
+            document = self.client.get(path, force_codec=True)
             if not isinstance(document, coreapi.document.Document):
-                document = coreapi.document.Document(url=path, content=document)
+                logger.warning('Action %s did not receive a Document object: %s', path, type(document))
+                # WAS document = coreapi.document.Document(url=path, content=document)
+                document = HALParseDocument(document)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
@@ -269,7 +273,7 @@ class ListClientMixin(BaseClient):
                      '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
         document = self.client.action(base_document, path, params=params, validate=False)
         if not isinstance(document, coreapi.document.Document):
-            logger.warning('Action did not receive a Document object %s', document.data)
+            logger.warning('Action did not receive a Document object: %s', type(document))
             document = HALParseDocument(document)
         return document
 
