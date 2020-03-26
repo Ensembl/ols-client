@@ -38,46 +38,6 @@ def ignore_warnings(test_func):
     return do_test
 
 
-class OntologyTestRemote(unittest.TestCase):
-    """Tests that requires access to www.ebi.ac.uk"""
-
-    def setUp(self):
-        warnings.simplefilter("ignore", ResourceWarning)
-        self.client = OlsClient(base_site='https://www.ebi.ac.uk/ols/api', page_size=100)
-
-    def test_term_definition(self):
-        o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/MONDO_0004933",
-                                    ontology_name='mondo', type=helpers.Term)
-        self.assertEqual(o_term.description, o_term.annotation.definition[0])
-
-    def test_properties_retrieval(self):
-        subsets = ['goantislim_grouping',
-                   'gocheck_do_not_annotate',
-                   'gocheck_do_not_manually_annotate',
-                   'goslim_agr',
-                   'goslim_aspergillus',
-                   'goslim_candida',
-                   'goslim_chembl',
-                   'goslim_generic',
-                   'goslim_mouse',
-                   'goslim_pir',
-                   'goslim_plant',
-                   'goslim_pombe',
-                   'goslim_synapse',
-                   'goslim_virus',
-                   'goslim_yeast',
-                   'gosubset_prok']
-
-        s_subsets = self.client.search(query=','.join(subsets), type='property')
-        seen = set()
-        unique_subsets = [x for x in s_subsets if
-                          x.short_form.lower() not in seen and not seen.add(x.short_form.lower())]
-        self.assertEqual(len(unique_subsets), len(subsets))
-        for subset in unique_subsets:
-            s_subset = self.client.property(identifier=subset.iri)
-            self.assertNotEqual(s_subset.definition, s_subset.label)
-
-
 class OntologyTestBasic(unittest.TestCase):
     """Basic test cases."""
 
@@ -274,7 +234,7 @@ class OntologyTestBasic(unittest.TestCase):
         Test Search feature : - kwargs passed
         """
         mixed = self.client.search(query='go', type='property')
-        self.assertEqual(len(mixed), 13)
+        self.assertEqual(len(mixed), 15)
 
         clazz = []
         for mix in mixed:
@@ -398,3 +358,24 @@ class OntologyTestBasic(unittest.TestCase):
         h_term = self.client.detail(iri="http://www.w3.org/2002/07/owl#Thing",
                                     ontology_name='duo', type=helpers.Term)
         self.assertEqual('', h_term.description)
+
+    def test_properties_retrieval(self):
+        subsets = "is quality measurement of"
+
+        s_subsets = self.client.search(query=subsets, ontology='aero', type='property',
+                                       exact='true')
+        seen = set()
+        self.assertEqual(len(s_subsets), 1)
+        subset = s_subsets[0]
+        d_subset = self.client.property(identifier=subset.iri)
+        self.assertEqual(d_subset.definition, subset.definition)
+        self.assertEqual(d_subset.accession, 'IAO:0000221')
+
+    def test_term_definition(self):
+        o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/BFO_0000015",
+                                    ontology_name='bfo', type=helpers.Term)
+        self.assertEqual(o_term.description, o_term.obo_definition_citation[0]['definition'])
+        self.assertEqual(o_term.description, 'p is a process = Def. p is an occurrent that has temporal proper parts '
+                                             'and for some time t, p s-depends_on some material entity at t. (axiom '
+                                             'label in BFO2 Reference: [083-003])')
+        self.assertEqual(o_term.label, 'process')
