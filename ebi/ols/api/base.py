@@ -275,6 +275,7 @@ class ListClientMixin(BaseClient):
         if not isinstance(document, coreapi.document.Document):
             logger.warning('Action did not receive a Document object: %s', type(document))
             document = HALParseDocument(document)
+            # document = coreapi.document.Document(url=path, content=document)
         return document
 
     @retry_requests
