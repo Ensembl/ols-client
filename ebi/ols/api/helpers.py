@@ -204,15 +204,15 @@ class Ontology(OLSHelper):
         from ebi.ols.api.client import ListClientMixin, OlsClient
         return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
 
-    def terms(self, filters=None):
+    def terms(self, filters={}):
         """ Links to ontology associated terms"""
         return self.__get_list_client(Term)(filters=filters)
 
-    def individuals(self, filters=None):
+    def individuals(self, filters={}):
         """ Links to ontology associated individuals """
         return self.__get_list_client(Individual)(filters=filters)
 
-    def properties(self, filters=None):
+    def properties(self, filters={}):
         """ Links to ontology associated properties"""
         return self.__get_list_client(Property)(filters=filters)
 
