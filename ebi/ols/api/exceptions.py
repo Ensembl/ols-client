@@ -62,3 +62,10 @@ class BadFilters(Exception):
     Bad filters applied while calling api client
     """
     pass
+
+
+class UnparsedDocumentException(OlsException):
+    """
+    Received document from OLS API can not be parsed into proper Document object
+    """
+    pass

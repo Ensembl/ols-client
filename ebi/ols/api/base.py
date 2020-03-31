@@ -12,6 +12,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
+import collections
 import logging
 import math
 import os
@@ -46,21 +47,26 @@ def retry_requests(api_func):
         while retry <= max_retry:
             trace = "%s.%s(%s)" % (call_object, api_func.__name__,
                                    ", ".join(map(repr, chain(args[1:], kwargs.values()))))
+            result = None
             try:
                 logger.debug('Calling client (%s/%s): %s ', retry, max_retry, trace)
-                return api_func(*args, **kwargs)
+                result = api_func(*args, **kwargs)
+                return result
             except (ConnectionError, coreapi.exceptions.CoreAPIException, exceptions.ServerError) as e:
                 # wait 5 seconds until next OLS api client try
                 logger.warning('Api Error: %s', e)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("Full response %s", result)
                 logger.warning('Call retry (%s/%s): %s ', retry, max_retry, trace)
                 time.sleep(5)
                 retry += 1
                 if retry > max_retry:
                     logger.error('API unrecoverable error %s', trace)
+                    logger.error('Errors %s, %s', args, kwargs)
                     raise exceptions.ObjectNotRetrievedError(e)
             except exceptions.NotFoundException as e:
                 # no retry when this is just a 404 error
-                logger.error('API unrecoverable error %s', trace)
+                logger.error('API Not Found error %s', trace)
                 raise e
             except exceptions.BadParameter as e:
                 logger.error('API call error %s', trace)
@@ -89,7 +95,16 @@ class BaseClient:
         self.uri = uri
         self.elem_class = elem_class
 
-    # TODO
+    def _parse_response(self, received, path=''):
+        logger.debug("Parse response from %s/%s (%s)", self.uri, path, type(received))
+        if isinstance(received, coreapi.document.Document):
+            return received
+        elif isinstance(received, collections.OrderedDict):
+            return HALParseDocument(received)
+        logger.error('%s/%s did not retrieved a parse-able object object: %s', self.uri, path, type(received))
+        raise exceptions.UnparsedDocumentException(
+            'Document (%s) %s could not be parsed' % (received.__class__.__name__,
+                                                      received))
 
     @staticmethod
     def filters_response(filters):
@@ -103,6 +118,8 @@ class BaseClient:
                 assertion_set = set(filters['fieldList'].split(','))
             elif type(filters['fieldList'] is set):
                 assertion_set = filters['fieldList']
+            else:
+                raise AssertionError("Wrong filter FieldList %s" % filters['fieldList'])
             assert assertion_set.issubset(
                 {'description', 'id', 'iri', 'is_defining_ontology', 'label', 'obo_id', 'ontology_name',
                  'ontology_prefix', 'short_form', 'type'}
@@ -112,6 +129,8 @@ class BaseClient:
                 assertion_set = set(filters['queryFields'].split(','))
             elif type(filters['queryFields'] is set):
                 assertion_set = filters['queryFields']
+            else:
+                raise AssertionError("Wrong filter queryFields %s" % filters['queryFields'])
             assert assertion_set.issubset(
                 {'annotations', 'description', 'iri', 'label', 'logical_description', 'obo_id', 'short_form', 'synonym'}
             ), "Wrong queryFields - check OLS doc"
@@ -120,6 +139,8 @@ class BaseClient:
                 assertion_set = set(filters['type'].split(','))
             elif type(filters['type'] is set):
                 assertion_set = filters['type']
+            else:
+                raise AssertionError("Wrong filter type %s" % filters['type'])
             assert assertion_set.issubset({'class', 'property', 'individual', 'ontology', 'term'}), \
                 "Wrong type - check OLS doc"
             filters['type'] = filters['type'].replace('term', 'class')
@@ -173,11 +194,7 @@ class DetailClientMixin(BaseClient):
         logger_id = '[identifier:{}, path:{}]'.format(iri, path)
         logger.debug('Detail client %s [silent:%s, unique:%s]', logger_id, silent, unique)
         try:
-            document = self.client.get(path, force_codec=True)
-            if not isinstance(document, coreapi.document.Document):
-                logger.warning('Action %s did not receive a Document object: %s', path, type(document))
-                # WAS document = coreapi.document.Document(url=path, content=document)
-                document = HALParseDocument(document)
+            document = self._parse_response(self.client.get(path, force_codec=True), iri)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
@@ -221,12 +238,27 @@ class ListClientMixin(BaseClient):
         if filters is None:
             filters = {}
         self.current_filters = filters
-        client_uri = document.url if document is not None else uri
-        super().__init__(client_uri, elem_class)
-        self.document = document or self.client.get(uri, force_codec=True)
         self.page_size = page_size
+        super().__init__(document.url if document is not None else uri, elem_class)
+        try:
+            if document is not None:
+                assert (isinstance(document, coreapi.document.Document))
+                self.document = document
+            else:
+                self.document = self._parse_response(self.client.get(uri, force_codec=True))
+            logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
         self.index = index
-        logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
 
     @retry_requests
     def __call__(self, filters=None, action=None):
@@ -248,7 +280,20 @@ class ListClientMixin(BaseClient):
         params = {'page': 0, 'size': page_size}
         params.update(filters)
         path = action if action else self.path
-        document = self.fetch_document(path, params, filters)
+        try:
+            document = self.fetch_document(path, params, filters)
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
+
         obj = self.__class__(path, self.elem_class, document, page_size, filters)
         obj.uri = urllib.parse.urljoin(obj.uri, os.path.dirname(urllib.parse.urlparse(obj.uri).path))
         return obj
@@ -266,17 +311,13 @@ class ListClientMixin(BaseClient):
         if filters is None:
             filters = {}
         if params is None:
-            params = filters or self.current_filters
+            params = filters if filters else self.current_filters
         if base_document is None:
             base_document = self.document
-        logger.debug('Action on document %s/%s?%s', base_document.url, path,
-                     '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
-        document = self.client.action(base_document, path, params=params, validate=False)
-        if not isinstance(document, coreapi.document.Document):
-            logger.warning('Action did not receive a Document object: %s', type(document))
-            document = HALParseDocument(document)
-            # document = coreapi.document.Document(url=path, content=document)
-        return document
+        logger.info('Loading document %s/%s', base_document.url, path)
+        logger.info("With Params: %s",
+                     '&'.join(['%s=%s' % (name, value) for name, value in params.items()])) if params else None
+        return self._parse_response(self.client.action(base_document, path, params=params, validate=False), path)
 
     @retry_requests
     def fetch_page(self, page):
@@ -287,7 +328,19 @@ class ListClientMixin(BaseClient):
         """
         uri = '/'.join([self.uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
         logger.debug('Fetch page "%s"', uri)
-        return self.client.get(uri, force_codec=True)
+        try:
+            return self._parse_response(self.client.get(uri, force_codec=True))
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
 
     @property
     def path(self):
@@ -356,7 +409,7 @@ class ListClientMixin(BaseClient):
                 document = self.fetch_document('next',
                                                filters=self.current_filters,
                                                base_document=document)
-
+                time.sleep(1)
             data = self._get_data(self.path, document)[index]
             yield self.elem_class_instance(**data)
             index += 1

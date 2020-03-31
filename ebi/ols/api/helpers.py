@@ -87,7 +87,8 @@ class HasAccessionMixin(object):
         if self._accession:
             return self._accession
         if not self.obo_id:
-            logger.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+            # TODO parse annotation id which may contains the actual term accession
+            # ex: https://www.ebi.ac.uk/ols/api/ontologies/pr/terms?iri=http%3A%2F%2Fwww.yeastgenome.org%2Fcgi-bin%2Flocus.fpl%3Fdbid%3DS000001596
             to_parse = self.short_form or self.iri.rsplit('/', 1)[-1]
             # guess
             sp = to_parse.split('_')
@@ -100,7 +101,8 @@ class HasAccessionMixin(object):
                 return accession
             else:
                 # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                logger.warning('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+                logger.error('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return None
         return self.obo_id
 
@@ -202,7 +204,8 @@ class Ontology(OLSHelper):
 
     def __get_list_client(self, item_class):
         from ebi.ols.api.client import ListClientMixin, OlsClient
-        return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
+        return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class,
+                               page_size=OlsClient.page_size)
 
     def terms(self, filters={}):
         """ Links to ontology associated terms"""
@@ -306,7 +309,8 @@ class Term(OLSHelper, HasAccessionMixin):
             from .client import ListClientMixin, OlsClient
             client = ListClientMixin(
                 OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
-                Term)
+                elem_class=Term,
+                page_size=OlsClient.page_size)
             self._relations_types = [name for name in client.document.links.keys() if name not in ('graph', 'jstree')]
         return self._relations_types
 
@@ -314,7 +318,8 @@ class Term(OLSHelper, HasAccessionMixin):
         from .client import ListClientMixin, OlsClient
         client = ListClientMixin(
             OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
-            Term)
+            elem_class=Term,
+            page_size=OlsClient.page_size)
         return client(action=relation)
 
     def graph(self):
