@@ -225,10 +225,10 @@ class ListClientMixin(BaseClient):
     """
     _pages = None
     _len = None
-    page_size = 1000
+    page_size = 500
     current_filters = {}
 
-    def __init__(self, uri, elem_class, document=None, page_size=1000, filters=None, index=0):
+    def __init__(self, uri, elem_class, document=None, page_size=500, filters=None, index=0):
         """
         Initialize a list object
         :param uri: the OLS api base source uri
@@ -409,7 +409,6 @@ class ListClientMixin(BaseClient):
                 document = self.fetch_document('next',
                                                filters=self.current_filters,
                                                base_document=document)
-                time.sleep(1)
             data = self._get_data(self.path, document)[index]
             yield self.elem_class_instance(**data)
             index += 1
