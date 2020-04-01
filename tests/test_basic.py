@@ -20,8 +20,7 @@ import warnings
 import ebi.ols.api.exceptions
 import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
-from ebi.ols.api.client import OlsClient
-from ols.api.base import ListClientMixin
+from ebi.ols.api.client import OlsClient, ListClientMixin
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
