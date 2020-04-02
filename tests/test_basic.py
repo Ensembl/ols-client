@@ -20,7 +20,7 @@ import warnings
 import ebi.ols.api.exceptions
 import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
-from ebi.ols.api.client import OlsClient
+from ebi.ols.api.client import OlsClient, ListClientMixin
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
@@ -379,3 +379,26 @@ class OntologyTestBasic(unittest.TestCase):
                                              'and for some time t, p s-depends_on some material entity at t. (axiom '
                                              'label in BFO2 Reference: [083-003])')
         self.assertEqual(o_term.label, 'process')
+
+    def testSlicingWithPageSize(self):
+        # terms_client = BfoClientMixin(self.ols_api_url)
+        self.client = OlsClient(base_site=self.ols_api_url, page_size=10)
+        ontology = self.client.ontology('bfo')
+        terms = ontology.terms()
+        self.assertEqual(terms.page_size, 10)
+
+    def testPRPagesFailures(self):
+        class BfoClientMixin(ListClientMixin):
+            count_call = 0
+
+            def fetch_document(self, path, params=None, filters=None, base_document=None):
+                BfoClientMixin.count_call = BfoClientMixin.count_call + 1
+                return super().fetch_document(path, params, filters, base_document)
+
+        terms_list_client = BfoClientMixin('/'.join(['https://www.ebi.ac.uk/ols/api', 'ontologies', 'pr']),
+                                           helpers.Term,
+                                           page_size=100)
+        terms = terms_list_client()
+        for term in terms[220:520]:
+            logger.info("Current term: %s", term)
+        self.assertEqual(terms_list_client.count_call, 4)

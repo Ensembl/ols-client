@@ -20,7 +20,7 @@ from coreapi import Client
 from ebi.ols.api.base import ListClientMixin, DetailClientMixin, HALCodec, SearchClientMixin, retry_requests
 from ebi.ols.api.helpers import OLSHelper, Property, Individual, Ontology, Term
 
-def_page_size = 1000
+def_page_size = 500
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +29,7 @@ class OlsClient(object):
     Official EMBL/EBI Ontology Lookup Service generic client.
     """
     site = 'https://www.ebi.ac.uk/ols/api'
+    page_size = 500
 
     class ItemClient(object):
 
@@ -66,7 +67,8 @@ class OlsClient(object):
     @retry_requests
     def __init__(self, page_size=None, base_site=None):
         # Init client from base Api URI
-        self.page_size = page_size or def_page_size
+        # Hacky page size update for all future request to OlsClient
+        OlsClient.page_size = page_size or def_page_size
         if base_site:
             OlsClient.site = base_site
         document = Client(decoders=[HALCodec()]).get(self.site)
