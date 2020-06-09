@@ -78,7 +78,7 @@ class HasAccessionMixin(object):
                 return self.obo_id
             else:
                 # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                logger.info('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return False
         return self.obo_id
 
@@ -93,16 +93,20 @@ class HasAccessionMixin(object):
             # guess
             sp = to_parse.split('_')
             if len(sp) >= 2:
-                left = '_'.join(sp[:-1])
-                right = sp[len(sp) - 1]
-                accession = ':'.join([left, right])
-                logger.debug('Accession sorted out %s', accession)
-                self._accession = accession
-                return accession
+                try:
+                    left = '_'.join(sp[:-1])
+                    right = sp[len(sp) - 1]
+                    accession = ':'.join([left, right])
+                    logger.debug('Accession sorted out %s', accession)
+                    self._accession = accession
+                    return accession
+                except Exception as e:
+                    logger.warning('Unable to parse %s because of %s', self.short_form,e)
+                    return None
             else:
                 # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
-                logger.error('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                logger.info('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+                logger.info('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return None
         return self.obo_id
 
