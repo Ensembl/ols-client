@@ -22,7 +22,7 @@ import ebi.ols.api.exceptions as exceptions
 import ebi.ols.api.helpers as helpers
 from ebi.ols.api.client import OlsClient, ListClientMixin
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(levelname)s : %(name)s.%(funcName)s(%(lineno)d) - %(message)s',
                     datefmt='%m-%d %H:%M:%S')
 
@@ -139,7 +139,7 @@ class OntologyTestBasic(unittest.TestCase):
         term_3 = terms[252]
 
         self.assertEqual(230, len(slice_terms))
-        self.assertGreaterEqual(480, len(terms))
+        self.assertGreaterEqual(len(terms), 480)
         current = 23
         for term in slice_terms:
             self.assertEqual(term.accession, terms[current].accession)
