@@ -12,14 +12,17 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
+import collections
 import logging
+import math
+import os
+import time
 import urllib.parse
 
 import coreapi.exceptions
-import math
-import time
 from coreapi import Client, codecs
 from hal_codec import HALCodec as OriginCodec
+from hal_codec import _parse_document as HALParseDocument
 from requests.exceptions import ConnectionError
 
 from ebi.ols.api import exceptions
@@ -33,7 +36,7 @@ def retry_requests(api_func):
     """
     Decorator for retrying calls to API in case of Network issues
     :param api_func: Api client function to call
-    :return:
+    :return: void
     """
     from itertools import chain
 
@@ -44,21 +47,26 @@ def retry_requests(api_func):
         while retry <= max_retry:
             trace = "%s.%s(%s)" % (call_object, api_func.__name__,
                                    ", ".join(map(repr, chain(args[1:], kwargs.values()))))
+            result = None
             try:
                 logger.debug('Calling client (%s/%s): %s ', retry, max_retry, trace)
-                return api_func(*args, **kwargs)
+                result = api_func(*args, **kwargs)
+                return result
             except (ConnectionError, coreapi.exceptions.CoreAPIException, exceptions.ServerError) as e:
                 # wait 5 seconds until next OLS api client try
                 logger.warning('Api Error: %s', e)
+                if logger.isEnabledFor(logging.INFO):
+                    logger.info("Full response %s", result)
                 logger.warning('Call retry (%s/%s): %s ', retry, max_retry, trace)
                 time.sleep(5)
                 retry += 1
                 if retry > max_retry:
                     logger.error('API unrecoverable error %s', trace)
+                    logger.error('Errors %s, %s', args, kwargs)
                     raise exceptions.ObjectNotRetrievedError(e)
             except exceptions.NotFoundException as e:
                 # no retry when this is just a 404 error
-                logger.error('API unrecoverable error %s', trace)
+                logger.error('API Not Found error %s', trace)
                 raise e
             except exceptions.BadParameter as e:
                 logger.error('API call error %s', trace)
@@ -74,7 +82,7 @@ class HALCodec(OriginCodec):
     format = 'hal'
 
 
-class BaseClient(object):
+class BaseClient:
     decoders = [HALCodec(), codecs.JSONCodec()]
 
     def __init__(self, uri, elem_class):
@@ -86,6 +94,17 @@ class BaseClient(object):
         self.client = Client(decoders=self.decoders)
         self.uri = uri
         self.elem_class = elem_class
+
+    def _parse_response(self, received, path=''):
+        logger.debug("Parse response from %s/%s (%s)", self.uri, path, type(received))
+        if isinstance(received, coreapi.document.Document):
+            return received
+        elif isinstance(received, collections.OrderedDict):
+            return HALParseDocument(received)
+        logger.error('%s/%s did not retrieved a parse-able object object: %s', self.uri, path, type(received))
+        raise exceptions.UnparsedDocumentException(
+            'Document (%s) %s could not be parsed' % (received.__class__.__name__,
+                                                      received))
 
     @staticmethod
     def filters_response(filters):
@@ -99,6 +118,8 @@ class BaseClient(object):
                 assertion_set = set(filters['fieldList'].split(','))
             elif type(filters['fieldList'] is set):
                 assertion_set = filters['fieldList']
+            else:
+                raise AssertionError("Wrong filter FieldList %s" % filters['fieldList'])
             assert assertion_set.issubset(
                 {'description', 'id', 'iri', 'is_defining_ontology', 'label', 'obo_id', 'ontology_name',
                  'ontology_prefix', 'short_form', 'type'}
@@ -108,14 +129,18 @@ class BaseClient(object):
                 assertion_set = set(filters['queryFields'].split(','))
             elif type(filters['queryFields'] is set):
                 assertion_set = filters['queryFields']
+            else:
+                raise AssertionError("Wrong filter queryFields %s" % filters['queryFields'])
             assert assertion_set.issubset(
                 {'annotations', 'description', 'iri', 'label', 'logical_description', 'obo_id', 'short_form', 'synonym'}
-                ), "Wrong queryFields - check OLS doc"
+            ), "Wrong queryFields - check OLS doc"
         if 'type' in filters:
             if type(filters['type']) is str:
                 assertion_set = set(filters['type'].split(','))
             elif type(filters['type'] is set):
                 assertion_set = filters['type']
+            else:
+                raise AssertionError("Wrong filter type %s" % filters['type'])
             assert assertion_set.issubset({'class', 'property', 'individual', 'ontology', 'term'}), \
                 "Wrong type - check OLS doc"
             filters['type'] = filters['type'].replace('term', 'class')
@@ -140,7 +165,7 @@ class BaseClient(object):
     @staticmethod
     def make_uri(identifier):
         """ Get identifier format for ontologies """
-        return urllib.parse.quote_plus(urllib.parse.quote_plus(identifier))
+        return urllib.parse.quote_plus(urllib.parse.quote_plus(str(identifier)))
 
     def elem_class_instance(self, **data):
         """
@@ -159,7 +184,7 @@ class DetailClientMixin(BaseClient):
 
     @retry_requests
     def __call__(self, identifier, silent=True, unique=True):
-        """ Check one element from OLS API accroding to specified identifier
+        """ Check one element from OLS API according to specified identifier
         In cas API returns multiple element return either:
         - the one which is defining_ontology (flag True)
         - The first one if none (Should not happen)
@@ -169,7 +194,7 @@ class DetailClientMixin(BaseClient):
         logger_id = '[identifier:{}, path:{}]'.format(iri, path)
         logger.debug('Detail client %s [silent:%s, unique:%s]', logger_id, silent, unique)
         try:
-            document = self.client.get(path)
+            document = self._parse_response(self.client.get(path, force_codec=True), iri)
             if self.elem_class.path in document.data:
                 # the request returned a list of object
                 if not silent:
@@ -200,23 +225,40 @@ class ListClientMixin(BaseClient):
     """
     _pages = None
     _len = None
-    page_size = 1000
+    page_size = 500
     current_filters = {}
 
-    def __init__(self, uri, elem_class, document=None, page_size=1000):
+    def __init__(self, uri, elem_class, document=None, page_size=500, filters=None, index=0):
         """
         Initialize a list object
         :param uri: the OLS api base source uri
         :param elem_class: the expected class items objects
         :param: coreapi.Document from api (used to avoid double call to api if already loade elsewhere
         """
-        client_uri = document.url if document is not None else uri
-        super().__init__(client_uri, elem_class)
-        self.document = document or self.client.get(uri, force_codec='hal')
+        if filters is None:
+            filters = {}
+        self.current_filters = filters
         self.page_size = page_size
-        # self.base_uri =
-        self.index = 0
-        logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
+        super().__init__(document.url if document is not None else uri, elem_class)
+        try:
+            if document is not None:
+                assert (isinstance(document, coreapi.document.Document))
+                self.document = document
+            else:
+                self.document = self._parse_response(self.client.get(uri, force_codec=True))
+            logger.debug('ListClientMixin init[%s][%s][%s]', self.elem_class, self.document.url, self.page_size)
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
+        self.index = index
 
     @retry_requests
     def __call__(self, filters=None, action=None):
@@ -226,37 +268,56 @@ class ListClientMixin(BaseClient):
         """
         if filters is None:
             filters = {}
-        else:
+        page_size = self.page_size
+        if filters:
             try:
                 check_fn = getattr(self, 'filters_' + self.path, None)
                 if callable(check_fn):
                     filters = check_fn(filters)
             except AssertionError as e:
                 raise exceptions.BadFilters(str(e))
-            if 'size' in filters:
-                self.page_size = filters['size']
-        self.current_filters = filters
-        params = {'page': 0, 'size': self.page_size}
+            page_size = filters.get('size', self.page_size)
+        params = {'page': 0, 'size': page_size}
         params.update(filters)
         path = action if action else self.path
-        self.fetch_document(path, params)
-        self.index = 0
-        return self
+        try:
+            document = self.fetch_document(path, params, filters)
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
+
+        obj = self.__class__(path, self.elem_class, document, page_size, filters)
+        obj.uri = urllib.parse.urljoin(obj.uri, os.path.dirname(urllib.parse.urlparse(obj.uri).path))
+        return obj
 
     @retry_requests
-    def fetch_document(self, path, params=None):
+    def fetch_document(self, path, params=None, filters=None, base_document=None):
         """
         Fetch coreapi.Document object fro specified path (based on current loaded document fro base uri
+        :param base_document: initial document
+        :param filters: filters to apply
         :param path: related path
         :param params: call params / filters
         :return Document: fetched document from api
         """
+        if filters is None:
+            filters = {}
         if params is None:
-            params = self.current_filters
-        logger.debug('Action on document %s/%s?%s', self.document.url, path,
-                     '&'.join(['%s=%s' % (name, value) for name, value in params.items()]))
-        self.document = self.client.action(self.document, [path], params=params, validate=False)
-        return self.document
+            params = filters if filters else self.current_filters
+        if base_document is None:
+            base_document = self.document
+        logger.info('Loading document %s/%s', base_document.url, path)
+        logger.info("With Params: %s",
+                     '&'.join(['%s=%s' % (name, value) for name, value in params.items()])) if params else None
+        return self._parse_response(self.client.action(base_document, path, params=params, validate=False), path)
 
     @retry_requests
     def fetch_page(self, page):
@@ -267,8 +328,64 @@ class ListClientMixin(BaseClient):
         """
         uri = '/'.join([self.uri, self.path]) + '?page={}&size={}'.format(page, self.page_size)
         logger.debug('Fetch page "%s"', uri)
-        self.document = self.client.get(uri, force_codec='hal')
-        return self.document
+        try:
+            return self._parse_response(self.client.get(uri, force_codec=True))
+        except coreapi.exceptions.ErrorMessage as e:
+            if 'status' in e.error:
+                if e.error['status'] == 404:
+                    raise exceptions.NotFoundException(e.error)
+                elif 400 < e.error['status'] < 499:
+                    raise exceptions.BadParameter(e.error)
+                elif e.error['status'] >= 500:
+                    raise exceptions.ServerError(e.error)
+            raise exceptions.OlsException(e.error)
+        except coreapi.exceptions.CoreAPIException as e:
+            raise e
+
+    @property
+    def path(self):
+        """ List elements in HAL documents are expected to be inside a path
+        ;:return the expected path from item element class
+        """
+        return self.elem_class.path
+
+    def _get_page(self, document):
+        return document['page']['number']
+
+    @property
+    def page(self):
+        """
+        Current page
+        :return: int
+        """
+        return self._get_page(self.document)
+
+    def _get_pages(self, document):
+        return document['page']['totalPages']
+
+    @property
+    def pages(self):
+        """
+        Total pages from last api request
+        :return: int
+        """
+        return self._pages or self._get_pages(self.document)
+
+    @pages.setter
+    def pages(self, pages):
+        self._pages = pages
+
+    def _get_data(self, path, document):
+        if path in document:
+            return document.data[path]
+
+    @property
+    def data(self):
+        """ Current object pages elements list
+        :return list
+        """
+        data = self._get_data(self.path, self.document)
+        return data if data else []
 
     def __len__(self):
         """
@@ -278,68 +395,32 @@ class ListClientMixin(BaseClient):
         # # print('len ', self._len, self._len or self.document['page']['totalElements'])
         return self._len or self.document['page']['totalElements']
 
+    def _gen_elems_forward(self, begin, end):
+        page = begin // self.page_size
+        if page != self.page:
+            document = self.fetch_page(page)
+        else:
+            document = self.document
+
+        index = begin % self.page_size
+        while begin < end:
+            if index >= len(self._get_data(self.path, document)):
+                index = 0
+                document = self.fetch_document('next',
+                                               filters=self.current_filters,
+                                               base_document=document)
+            data = self._get_data(self.path, document)[index]
+            yield self.elem_class_instance(**data)
+            index += 1
+            begin += 1
+
     def __iter__(self):
         """
-        Initialize self contained iterator
-        :return:
+        Iter elements in current list, if outbound current pages items, load next page
+        :return: generator
         """
-        return self
-
-    @property
-    def path(self):
-        """ List elements in HAL documents are expected to be inside a path
-        ;:return the expected path from item element class
-        """
-        return self.elem_class.path
-
-    @property
-    def page(self):
-        """
-        Current page
-        :return: int
-        """
-        return self.document['page']['number']
-
-    @property
-    def pages(self):
-        """
-        Total pages from last api request
-        :return: int
-        """
-        return self._pages or self.document['page']['totalPages'] - 1
-
-    @pages.setter
-    def pages(self, pages):
-        self._pages = pages
-
-    @property
-    def data(self):
-        """ Current object pages elements list
-        :return list
-        """
-        if self.path in self.document:
-            return self.document.data[self.path]
-        return []
-
-    def __next__(self):
-        """
-        Next element in current list, if outbound current pages items, load next page
-        :return: list
-        """
-
-        if self.index < len(self.data):  # and self.index + (self.page * self.page_size) < len(self):
-            # Simply return current indexed item
-            pass
-        elif self.page < self.pages:
-            self.fetch_document('next')
-            self.index = 0
-        else:
-            raise StopIteration
-
-        loaded = self.elem_class_instance(**self.data[self.index])
-        self.index += 1
-        # logger.debug('Loaded %s', loaded)
-        return loaded
+        index = self.index
+        return self._gen_elems_forward(index, len(self))
 
     def __getitem__(self, item):
         """
@@ -349,30 +430,27 @@ class ListClientMixin(BaseClient):
         """
         if isinstance(item, slice):
             logger.debug('Sliced params [%s %s]', item.start, item.stop)
-            if item.start > (len(self) - 1) or item.stop > (len(self) - 1):
-                raise KeyError('Out of bound indexes %s ', len(self) - 1)
+            if item.start > len(self) or item.stop > len(self):
+                raise IndexError('Out of bound indexes. Container len: %s ', len(self))
 
-            page = item.start // self.page_size
-            logger.debug('Expected page for start %s', page)
-            if page != self.page:
-                self.fetch_page(page)
+            logger.debug('Creating slice from [%s - %s]', item.start, item.stop)
             if item.start < item.stop:
-                slice_range = range(item.start, item.stop)
-                self.index = item.start
+                return [elem for elem in self._gen_elems_forward(item.start, item.stop)]
             else:
-                self.index = item.stop
-                slice_range = range(item.start, item.stop, -1)
-            logger.debug('Creating slice from [%s - %s]', self.index, slice_range)
-            return [self[ii] for ii in slice_range]
+                list_slice = [elem for elem in self._gen_elems_forward(item.stop, item.start)]
+                list_slice.reverse()
+                return list_slice
         elif isinstance(item, int):
-            page = item // self.page_size
             index = item % self.page_size
+            if index >= len(self):
+                raise IndexError("No corresponding key {}".format(item))
+            page = item // self.page_size
+            document = self.document
             if page != self.page:
-                self.fetch_page(page)
-                self.index = index
-            if index > len(self.data):
-                raise KeyError("No corresponding key {}".format(item))
-            return self.elem_class_instance(**self.data[index])
+                document = self.fetch_page(page)
+
+            data = self._get_data(self.path, document)[index]
+            return self.elem_class_instance(**data)
         else:
             raise TypeError("Key indexes must be int, not {}".format(type(item)))
 
@@ -380,7 +458,13 @@ class ListClientMixin(BaseClient):
         """ String repr of list
         :return str
         """
-        return '[' + ','.join([repr(self.elem_class_instance(**data)) for data in self.data]) + ']'
+        elements_string = ', '.join([repr(self.elem_class_instance(**data)) for data in self.data])
+        dots = '...' if self.pages > 1 else ''
+        return '{}(page: {}, pages: {}, [{}{}])'.format(self.__class__.__name__,
+                                                        self.page,
+                                                        self.pages,
+                                                        elements_string,
+                                                        dots)
 
 
 class SearchClientMixin(ListClientMixin):
@@ -388,7 +472,6 @@ class SearchClientMixin(ListClientMixin):
     Mixed items classes list, retrieved from search endpoint in OLS REST api
 
     """
-    base_search_uri = ''
     path = 'response'
 
     def __call__(self, query=None, filters=None, **kwargs):
@@ -398,12 +481,16 @@ class SearchClientMixin(ListClientMixin):
         :param query: searched string
         :return: a list of mixed items (individuals, ontologies, terms, properties)
         """
+        if filters is None:
+            filters = {}
         if query is None:
             raise exceptions.BadParameter({'error': "Bad Request", 'message': 'Missing query',
                                            'status': 400, 'path': 'search', 'timestamp': time.time()})
         self.query = query
         call_filters = filters or {key: value for key, value in kwargs.items()} or {}
-        return super().__call__(call_filters)
+        obj = super().__call__(call_filters)
+        obj.query = query
+        return obj
 
     def __len__(self):
         return self.document[self.path]['numFound']
@@ -425,46 +512,51 @@ class SearchClientMixin(ListClientMixin):
         else:
             return helpers.Term(**kwargs)
 
-    # TODO elem_class as property
+    def _get_start(self, document):
+        return document[self.path]['start']
 
     @property
     def start(self):
         """ First element index in full list
         """
-        return self.document[self.path]['start']
+        return self._get_start(self.document)
+
+    def _get_page(self, document):
+        return math.floor(self._get_start(document) / self.page_size)
 
     @property
     def page(self):
         """ Calculate current page, not returned directly from api
         :return int
         """
-        return math.floor(self.start / self.page_size) + 1
+        return self._get_page(self.document)
+
+    def _get_pages(self, _document=None):
+        return math.ceil(len(self) / self.page_size)
 
     @property
     def pages(self):
         """ Calculate and return search pages number
         :return int
         """
-        return math.ceil(len(self) / self.page_size)
+        return self._get_pages()
+
+    def _get_data(self, path, document):
+        return document.data[path]['docs']
 
     @property
     def data(self):
         """ Actual list elements from returned search elements
         """
-        return self.document.data[self.path]['docs']
+        return self._get_data(self.path, self.document)
 
-    @retry_requests
-    def fetch_document(self, path, params=None):
-        """
-        Fetch current search elements
-        :param path: the uri relative path
-        :param params: search params
-        :return: Document
-        """
-        params = params or self.current_filters
+    def _get_base_uri(self, params=None, filters=None):
+        if filters is None:
+            filters = {}
+        if params is None:
+            params = filters or self.current_filters
         params.pop('page', 0)
         params.pop('size', 0)
-        start = 0 if path != 'next' else self.start + self.page_size
         uri = '/'.join([self.uri, 'search'])
         uri += '?q=' + self.query
         filters_uri = ''
@@ -475,7 +567,22 @@ class SearchClientMixin(ListClientMixin):
             else:
                 filters_uri += '&' + filter_name + '=' + filter_value
         uri += filters_uri
-        self.base_search_uri = uri
+        return uri
+
+    @retry_requests
+    def fetch_document(self, path, params=None, filters={}, base_document=None):
+        """
+        Fetch current search elements
+        :param base_document:
+        :param filters:
+        :param path: the uri relative path
+        :param params: search params
+        :return: Document
+        """
+        if base_document:
+            self.document = base_document
+        start = 0 if path != 'next' else self.start + self.page_size
+        uri = self._get_base_uri(params, filters)
         final_uri = uri + '&rows={}&start={}'.format(self.page_size, start)
         logger.debug('Final uri %s', final_uri)
         self.document = self.client.get(final_uri, format='hal')
@@ -487,7 +594,8 @@ class SearchClientMixin(ListClientMixin):
         """ Fetch OLS api search page
         :return Document
         """
-        uri = self.base_search_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
+        base_uri = self._get_base_uri()
+        uri = base_uri + '&rows={}&start={}'.format(self.page_size, page * self.page_size)
         self.document = self.client.get(uri, format='hal')
         logger.debug('Loaded page %s', self.document.url)
         return self.document

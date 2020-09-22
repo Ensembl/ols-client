@@ -78,7 +78,7 @@ class HasAccessionMixin(object):
                 return self.obo_id
             else:
                 # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                logger.info('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return False
         return self.obo_id
 
@@ -87,20 +87,26 @@ class HasAccessionMixin(object):
         if self._accession:
             return self._accession
         if not self.obo_id:
-            logger.error('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+            # TODO parse annotation id which may contains the actual term accession
+            # ex: https://www.ebi.ac.uk/ols/api/ontologies/pr/terms?iri=http%3A%2F%2Fwww.yeastgenome.org%2Fcgi-bin%2Flocus.fpl%3Fdbid%3DS000001596
             to_parse = self.short_form or self.iri.rsplit('/', 1)[-1]
             # guess
             sp = to_parse.split('_')
             if len(sp) >= 2:
-                left = '_'.join(sp[:-1])
-                right = sp[len(sp) - 1]
-                accession = ':'.join([left, right])
-                logger.debug('Accession sorted out %s', accession)
-                self._accession = accession
-                return accession
+                try:
+                    left = '_'.join(sp[:-1])
+                    right = sp[len(sp) - 1]
+                    accession = ':'.join([left, right])
+                    logger.debug('Accession sorted out %s', accession)
+                    self._accession = accession
+                    return accession
+                except Exception as e:
+                    logger.warning('Unable to parse %s because of %s', self.short_form,e)
+                    return None
             else:
                 # no '_' character in short_form might ignore the error (may be #Thing)
-                logger.warning('Unable to parse %s', self.short_form) if len(sp) == 1 else None
+                logger.info('[NO_OBO_ID][%s][%s]', self.short_form, self.iri)
+                logger.info('Unable to parse %s', self.short_form) if len(sp) == 1 else None
                 return None
         return self.obo_id
 
@@ -202,17 +208,18 @@ class Ontology(OLSHelper):
 
     def __get_list_client(self, item_class):
         from ebi.ols.api.client import ListClientMixin, OlsClient
-        return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class)
+        return ListClientMixin('/'.join([OlsClient.site, 'ontologies/' + self.ontology_id]), item_class,
+                               page_size=OlsClient.page_size)
 
-    def terms(self, filters=None):
+    def terms(self, filters={}):
         """ Links to ontology associated terms"""
         return self.__get_list_client(Term)(filters=filters)
 
-    def individuals(self, filters=None):
+    def individuals(self, filters={}):
         """ Links to ontology associated individuals """
         return self.__get_list_client(Individual)(filters=filters)
 
-    def properties(self, filters=None):
+    def properties(self, filters={}):
         """ Links to ontology associated properties"""
         return self.__get_list_client(Property)(filters=filters)
 
@@ -306,7 +313,8 @@ class Term(OLSHelper, HasAccessionMixin):
             from .client import ListClientMixin, OlsClient
             client = ListClientMixin(
                 OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
-                Term)
+                elem_class=Term,
+                page_size=OlsClient.page_size)
             self._relations_types = [name for name in client.document.links.keys() if name not in ('graph', 'jstree')]
         return self._relations_types
 
@@ -314,7 +322,8 @@ class Term(OLSHelper, HasAccessionMixin):
         from .client import ListClientMixin, OlsClient
         client = ListClientMixin(
             OlsClient.site + '/ontologies/' + self.ontology_name + '/terms/' + ListClientMixin.make_uri(self.iri),
-            Term)
+            elem_class=Term,
+            page_size=OlsClient.page_size)
         return client(action=relation)
 
     def graph(self):

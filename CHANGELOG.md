@@ -76,3 +76,12 @@ v1.0.6
  - Added extra way to retrieve term definition if not set under description (retrieve from annotation)
  - When searching for a detailed item (such as property), return the first 'in defining ontology' or first one if not found
  - Added PropertyAnnotation parsing
+ 
+ v1.1.0
+ ------
+ 
+ - Refactored tests against a docker image instead of using public OLS api
+ - Refactored client classes to avoid concrete class inheritance
+ - Force retrieving `coreapi.document.Document` objects
+ 
+ 

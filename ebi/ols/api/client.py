@@ -12,15 +12,15 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 """
-import logging
 import inspect
+import logging
 
 from coreapi import Client
 
-import ebi.ols.api.helpers as helpers
 from ebi.ols.api.base import ListClientMixin, DetailClientMixin, HALCodec, SearchClientMixin, retry_requests
+from ebi.ols.api.helpers import OLSHelper, Property, Individual, Ontology, Term
 
-def_page_size = 1000
+def_page_size = 500
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +29,7 @@ class OlsClient(object):
     Official EMBL/EBI Ontology Lookup Service generic client.
     """
     site = 'https://www.ebi.ac.uk/ols/api'
+    page_size = 500
 
     class ItemClient(object):
 
@@ -43,7 +44,7 @@ class OlsClient(object):
             if 'item' in kwargs:
                 item = kwargs.get('item')
             if item:
-                if not issubclass(item.__class__, helpers.OLSHelper):
+                if not issubclass(item.__class__, OLSHelper):
                     raise NotImplementedError('Unable to fin any suitable client for %s', item.__class__.__name__)
                 base_uri = 'ontologies/{}'.format(item.ontology_name) if item.ontology_name or kwargs.get(
                     'ontology_name',
@@ -58,34 +59,33 @@ class OlsClient(object):
                 assert ('type' in kwargs)
                 item = kwargs.get('type')
                 if inspect.isclass(item):
-                    assert (issubclass(item, helpers.OLSHelper))
+                    assert (issubclass(item, OLSHelper))
                 else:
-                    assert (issubclass(item.__class__, helpers.OLSHelper))
+                    assert (issubclass(item.__class__, OLSHelper))
                 return self.__call__(item=item(ontology_name=kwargs.get('ontology_name'), iri=kwargs.get('iri')))
 
     @retry_requests
     def __init__(self, page_size=None, base_site=None):
         # Init client from base Api URI
-        self.page_size = page_size or def_page_size
+        # Hacky page size update for all future request to OlsClient
+        OlsClient.page_size = page_size or def_page_size
         if base_site:
             OlsClient.site = base_site
         document = Client(decoders=[HALCodec()]).get(self.site)
         logger.debug('OlsClient [%s][%s]', document.url, self.page_size)
         # List Clients
-        self.ontologies = ListClientMixin('/'.join([self.site, 'ontologies']), helpers.Ontology, document,
+        self.ontologies = ListClientMixin('/'.join([self.site, 'ontologies']), Ontology, document,
                                           self.page_size)
-        self.terms = ListClientMixin('/'.join([self.site, 'terms']), helpers.Term, document, self.page_size)
-        self.properties = ListClientMixin('/'.join([self.site, 'properties']), helpers.Property, document,
+        self.terms = ListClientMixin('/'.join([self.site, 'terms']), Term, document, self.page_size)
+        self.properties = ListClientMixin('/'.join([self.site, 'properties']), Property, document,
                                           self.page_size)
-        self.individuals = ListClientMixin('/'.join([self.site, 'individuals']), helpers.Individual, document,
+        self.individuals = ListClientMixin('/'.join([self.site, 'individuals']), Individual, document,
                                            self.page_size)
         # Details client
-        self.ontology = DetailClientMixin('/'.join([self.site, 'ontologies']), helpers.Ontology)
-        self.term = DetailClientMixin('/'.join([self.site, 'terms']), helpers.Term)
-        self.property = DetailClientMixin('/'.join([self.site, 'properties']), helpers.Property)
-        self.individual = DetailClientMixin('/'.join([self.site, 'individuals']), helpers.Individual)
+        self.ontology = DetailClientMixin('/'.join([self.site, 'ontologies']), Ontology)
+        self.term = DetailClientMixin('/'.join([self.site, 'terms']), Term)
+        self.property = DetailClientMixin('/'.join([self.site, 'properties']), Property)
+        self.individual = DetailClientMixin('/'.join([self.site, 'individuals']), Individual)
         # Special clients
-        self.search = SearchClientMixin('/'.join([self.site, 'search']), helpers.OLSHelper, document, self.page_size)
+        self.search = SearchClientMixin('/'.join([self.site, 'search']), OLSHelper, document, self.page_size)
         self.detail = self.ItemClient(self.site)
-
-
