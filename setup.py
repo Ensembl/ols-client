@@ -1,18 +1,12 @@
-# -*- coding: utf-8 -*-
-
-# Learn more: https://github.com/Ensembl/ols-client
 import os
 
 from setuptools import setup, find_packages
 
-with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
-    readme = f.read()
+with open('README.md', 'r', encoding='utf-8') as f:
+    README = f.read()
 
-with open(os.path.join(os.path.dirname(__file__), 'LICENSE')) as f:
-    license_ct = f.read()
-
-with open(os.path.join(os.path.dirname(__file__), 'VERSION')) as f:
-    version = f.read()
+with open('VERSION', 'r', encoding='utf-8') as f:
+    VERSION = f.read()
 
 
 def import_requirements():
@@ -25,13 +19,14 @@ def import_requirements():
 
 setup(
     name='ebi-ols-client',
-    version=version,
+    version=VERSION,
     description='OLS - REST Api Client - python library',
-    long_description=readme,
+    long_description=README,
+    long_description_content_type='text/markdown',
     author='Marc Chakiachvili',
     author_email='mchakiachvili@ebi.ac.uk',
     url='https://github.com/Ensembl/ols-client',
-    license=license_ct,
+    license='Apache 2.0',
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=import_requirements(),
     classifiers=[
