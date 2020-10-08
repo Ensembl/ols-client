@@ -1,20 +1,20 @@
 [![Coverage Status](https://coveralls.io/repos/github/Ensembl/ols-client/badge.svg?branch=master)](https://coveralls.io/github/Ensembl/ols-client?branch=master)
 [![Build Status](https://travis-ci.org/Ensembl/ols-client.svg?branch=master)](https://travis-ci.org/Ensembl/ols-client)
 
-OLS Ontologies loader 
+OLS Ontologies loader
 =====================
 
 Provide class based client for accessing OLS RestAPI from EMBL-EBI
 
 Install
-------- 
+-------
 
 with pip
 
 ```bash
     pip install ebi-ols-client
 ```
-    
+
 See: https://www.ebi.ac.uk/ols/docs/api for more information on OLS API
 
 Main files
@@ -22,9 +22,9 @@ Main files
 
     - ebi.ols.api.client.py: contains main classes to access OLS via HAL schema.
     - ebi.ols.api.helpers.py: data tranfer object loaded from API calls
-    
+
 How to use
----------- 
+----------
 
 ```python
 
@@ -57,7 +57,7 @@ Please do ! If you need to run tests locally, add to your virtual env requiremen
 ```bash
     pip install -r requirements.txt
     pip install -r requirements-dev.txt
-    
+
     # to run tests
     nosetests --withcoverage
 ```
