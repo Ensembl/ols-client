@@ -1,5 +1,3 @@
-import os
-
 from setuptools import setup, find_packages
 
 with open('README.md', 'r', encoding='utf-8') as f:
@@ -10,7 +8,7 @@ with open('VERSION', 'r', encoding='utf-8') as f:
 
 
 def import_requirements():
-    with open(os.path.join(os.path.dirname(__file__), 'requirements.txt')) as f:
+    with open('requirements.txt', 'r', encoding='utf-8') as f:
         content = f.readlines()
         # you may also want to remove whitespace characters like `\n` at the end of each line
         content = [x.strip() for x in content]
