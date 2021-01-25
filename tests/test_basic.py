@@ -229,6 +229,31 @@ class OntologyTestBasic(unittest.TestCase):
             detailed = self.client.detail(prop)
             self._checkMixed(detailed)
 
+    def test_childrenOf_is_valid_response_filter(self):
+        # Given
+        filters = {'childrenOf':'A'}
+        expected_filters = filters.copy()
+        # When
+        actual_filters = self.client.search.filters_response(filters)
+        # Then
+        self.assertEqual(actual_filters, filters)
+
+    def test_childrenOf_value_can_be_set(self):
+        # Given
+        filters = {'childrenOf':{'A','B'}}
+        expected_filters = filters.copy()
+        # When 
+        actual_filters = self.client.search.filters_response(filters)
+        # Then
+        self.assertEqual(actual_filters, filters)
+
+    def test_childrenOf_value_cannot_be_list(self):
+        # Given
+        filters = {'childrenOf': ['A', 'B']}
+        # When /Then
+        with self.assertRaises(AssertionError) as ex:
+            self.client.search.filters_response(filters)
+
     def test_search_kwargs(self):
         """
         Test Search feature : - kwargs passed

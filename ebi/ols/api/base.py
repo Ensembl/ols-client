@@ -111,8 +111,15 @@ class BaseClient:
         """ Filters queries for search"""
         logger.debug('Applying filters %s', filters)
         assert set(filters.keys()).issubset(
-            {'exact', 'fieldList', 'groupField', 'obsoletes', 'ontology', 'queryFields', 'slim', 'type', 'local'}), \
+            {'exact', 'fieldList', 'groupField', 'obsoletes', 'ontology', 'queryFields', 'slim', 'type', 'local', 'childrenOf'}), \
             "Unauthorized filter key"
+        if 'childrenOf' in filters:
+            if type(filters['childrenOf']) is str:
+                assertion_set = set(filters['childrenOf'].split(','))
+            elif type(filters['childrenOf']) is set:
+                assertion_set = filters['childrenOf']
+            else:
+                raise AssertionError("Wrong filter childrenOf %s" % filters['childrenOf'])
         if 'fieldList' in filters:
             if type(filters['fieldList']) is str:
                 assertion_set = set(filters['fieldList'].split(','))
