@@ -254,6 +254,67 @@ class OntologyTestBasic(unittest.TestCase):
         with self.assertRaises(AssertionError) as ex:
             self.client.search.filters_response(filters)
 
+    def test_single_childrenOf_filters_search_results(self):
+        # Given
+        query = 'chemical'
+        ontology = 'phi'
+        filters = {
+            'fieldList': {'iri'},
+            'childrenOf': 'http://purl.obolibrary.org/obo/PHI_1000000'
+            }
+        # When
+        actual_terms = self.client.search(
+            query=query, 
+            ontology=ontology,
+            filters=filters)
+        actual_iris = { term.iri for term in actual_terms }
+        expected_iris = {
+                'http://purl.obolibrary.org/obo/PHI_1000003',
+                'http://purl.obolibrary.org/obo/PHI_1000002'
+        }
+        assert(actual_iris == expected_iris)
+    
+    def test_multiple_childrenOf_filters_search_results(self):
+        # Given
+        query = 'chemical'
+        ontology = 'phi'
+        filters = {
+            'fieldList': {'iri'},
+            'childrenOf': {
+                'http://purl.obolibrary.org/obo/PHI_1000000',
+                'http://purl.obolibrary.org/obo/PHI_2000000'
+            }
+        }
+        # When
+        actual_terms = self.client.search(
+            query=query, 
+            ontology=ontology,
+            filters=filters)
+        actual_iris = { term.iri for term in actual_terms }
+        expected_iris = {
+                'http://purl.obolibrary.org/obo/PHI_1000003',
+                'http://purl.obolibrary.org/obo/PHI_1000002',
+                'http://purl.obolibrary.org/obo/PHI_2000004'
+        }
+        assert(actual_iris == expected_iris)
+
+    def test_childrenOf_non_existant_parent_yields_no_search_results(self):
+        # Given
+        query = 'chemical'
+        ontology = 'phi'
+        filters = {
+            'fieldList': {'iri'},
+            'childrenOf': 'http://purl.obolibrary.org/obo/PHI_3000000',
+        }
+        # When
+        actual_terms = self.client.search(
+            query=query, 
+            ontology=ontology,
+            filters=filters)
+        actual_iris = { term.iri for term in actual_terms }
+        expected_iris = set()
+        assert(actual_iris == expected_iris)
+
     def test_search_kwargs(self):
         """
         Test Search feature : - kwargs passed
