@@ -123,7 +123,7 @@ class BaseClient:
         if 'fieldList' in filters:
             if type(filters['fieldList']) is str:
                 assertion_set = set(filters['fieldList'].split(','))
-            elif type(filters['fieldList'] is set):
+            elif type(filters['fieldList']) is set:
                 assertion_set = filters['fieldList']
             else:
                 raise AssertionError("Wrong filter FieldList %s" % filters['fieldList'])
@@ -134,7 +134,7 @@ class BaseClient:
         if 'queryFields' in filters:
             if type(filters['queryFields']) is str:
                 assertion_set = set(filters['queryFields'].split(','))
-            elif type(filters['queryFields'] is set):
+            elif type(filters['queryFields']) is set:
                 assertion_set = filters['queryFields']
             else:
                 raise AssertionError("Wrong filter queryFields %s" % filters['queryFields'])
@@ -144,7 +144,7 @@ class BaseClient:
         if 'type' in filters:
             if type(filters['type']) is str:
                 assertion_set = set(filters['type'].split(','))
-            elif type(filters['type'] is set):
+            elif type(filters['type']) is set:
                 assertion_set = filters['type']
             else:
                 raise AssertionError("Wrong filter type %s" % filters['type'])
