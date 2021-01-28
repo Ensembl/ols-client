@@ -272,7 +272,7 @@ class OntologyTestBasic(unittest.TestCase):
                 'http://purl.obolibrary.org/obo/PHI_1000003',
                 'http://purl.obolibrary.org/obo/PHI_1000002'
         }
-        assert(actual_iris == expected_iris)
+        self.assertEqual(actual_iris, expected_iris)
     
     def test_multiple_childrenOf_filters_search_results(self):
         # Given
@@ -296,7 +296,7 @@ class OntologyTestBasic(unittest.TestCase):
                 'http://purl.obolibrary.org/obo/PHI_1000002',
                 'http://purl.obolibrary.org/obo/PHI_2000004'
         }
-        assert(actual_iris == expected_iris)
+        self.assertEqual(actual_iris, expected_iris)
 
     def test_childrenOf_non_existant_parent_yields_no_search_results(self):
         # Given
@@ -313,7 +313,7 @@ class OntologyTestBasic(unittest.TestCase):
             filters=filters)
         actual_iris = { term.iri for term in actual_terms }
         expected_iris = set()
-        assert(actual_iris == expected_iris)
+        self.assertEqual(actual_iris, expected_iris)
 
     def test_search_kwargs(self):
         """
