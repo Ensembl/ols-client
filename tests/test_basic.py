@@ -268,6 +268,7 @@ class OntologyTestBasic(unittest.TestCase):
             ontology=ontology,
             filters=filters)
         actual_iris = { term.iri for term in actual_terms }
+        # Then
         expected_iris = {
                 'http://purl.obolibrary.org/obo/PHI_1000003',
                 'http://purl.obolibrary.org/obo/PHI_1000002'
@@ -291,6 +292,7 @@ class OntologyTestBasic(unittest.TestCase):
             ontology=ontology,
             filters=filters)
         actual_iris = { term.iri for term in actual_terms }
+        # Then
         expected_iris = {
                 'http://purl.obolibrary.org/obo/PHI_1000003',
                 'http://purl.obolibrary.org/obo/PHI_1000002',
@@ -312,6 +314,7 @@ class OntologyTestBasic(unittest.TestCase):
             ontology=ontology,
             filters=filters)
         actual_iris = { term.iri for term in actual_terms }
+        # Then
         expected_iris = set()
         self.assertEqual(actual_iris, expected_iris)
 
