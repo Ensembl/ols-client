@@ -114,16 +114,16 @@ class BaseClient:
             {'exact', 'fieldList', 'groupField', 'obsoletes', 'ontology', 'queryFields', 'slim', 'type', 'local', 'childrenOf'}), \
             "Unauthorized filter key"
         if 'childrenOf' in filters:
-            if type(filters['childrenOf']) is str:
+            if isinstance(filters['childrenOf'], str):
                 assertion_set = set(filters['childrenOf'].split(','))
-            elif type(filters['childrenOf']) is set:
+            elif isinstance(filters['childrenOf'], set):
                 assertion_set = filters['childrenOf']
             else:
                 raise AssertionError("Wrong filter childrenOf %s" % filters['childrenOf'])
         if 'fieldList' in filters:
-            if type(filters['fieldList']) is str:
+            if isinstance(filters['fieldList'], str):
                 assertion_set = set(filters['fieldList'].split(','))
-            elif type(filters['fieldList']) is set:
+            elif isinstance(filters['fieldList'],set):
                 assertion_set = filters['fieldList']
             else:
                 raise AssertionError("Wrong filter FieldList %s" % filters['fieldList'])
@@ -132,9 +132,9 @@ class BaseClient:
                  'ontology_prefix', 'short_form', 'type'}
             ), "Wrong fieldList - check OLS doc"
         if 'queryFields' in filters:
-            if type(filters['queryFields']) is str:
+            if isinstance(filters['queryFields'], str):
                 assertion_set = set(filters['queryFields'].split(','))
-            elif type(filters['queryFields']) is set:
+            elif isinstance(filters['queryFields'], set):
                 assertion_set = filters['queryFields']
             else:
                 raise AssertionError("Wrong filter queryFields %s" % filters['queryFields'])
@@ -142,9 +142,9 @@ class BaseClient:
                 {'annotations', 'description', 'iri', 'label', 'logical_description', 'obo_id', 'short_form', 'synonym'}
             ), "Wrong queryFields - check OLS doc"
         if 'type' in filters:
-            if type(filters['type']) is str:
+            if isinstance(filters['type'], str):
                 assertion_set = set(filters['type'].split(','))
-            elif type(filters['type']) is set:
+            elif isinstance(filters['type'], set):
                 assertion_set = filters['type']
             else:
                 raise AssertionError("Wrong filter type %s" % filters['type'])
