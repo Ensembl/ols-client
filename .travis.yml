@@ -1,6 +1,6 @@
 language: python
 python:
-  - "3.5"
+  - "3.6"
 services:
   - docker
 before_install:
@@ -9,13 +9,9 @@ before_install:
   - docker build -t ols tests/ols-docker
   - docker run -d -p 127.0.0.1:8080:8080 -t ols
   - docker ps -a
-# command to install dependencies
 install:
-  - pip install -r requirements.txt
-  - pip install nose
-  - pip install coverage
-  - pip install python-coveralls
-# command to run tests
+  - pip install -e .
+  - pip install -r requirements-test.txt
 script:
   - nosetests tests.test_basic --verbose --with-coverage --cover-package=ebi.ols
 after_success:
@@ -26,3 +22,21 @@ notifications:
     on_failure: always
   slack:
     secure: BkrSPAkOM5aTOpeyO9vZnHdZ0LF1PLk0r2HtcXN2eTMyiHoGXkl6VUjdAL8EkzI4gunW2GProdSIjHpf60WdiEmKAulMdJRI+xyUbuxnY31mwiikS9HYwqmPBbMTf0Mh2pMBngZRFs+gaFZDUMTfLfp+8MQfU1R54yb6hPuVt5I=
+deploy:
+- provider: pypi
+  username: __token__
+  server: https://test.pypi.org/legacy/
+  password:
+    secure: chmXiAI1OKIHwnwfEP3tBg0c21VBTEkya6mInWPlOJXiL5qsyx3FzcpGk6WTLkOGaqA3Um5wXydyHmhG5cPW9CY67VDlcTYLP9gAFwK+rugB45hkxNn1rfscrzvTONVDRL60OQwagfNDQYqJ8VmpFj/ge6dgu/idvcVeXyhy8k3ETFTYpMgYpOqaLuPnp0OPZxscI4mqyS1kF8u+Wfmx3QbICxb9z2Hsqm1ap8byO3COCxsTzzVTw1EMqsyu2ZPRoeuT7nC8Hz3pJEezCHcdBVXpZw47hMTxBA8cR4jsvGJ4nNRQtezNgL+vXm3qGyeDXRNmRGx7Y4lEyOAwGKftL8SVMdpiLDb4qozv/7YO6u6xgFCfIkpPLoupG9E/RwIPg7nRcXWCUTHEhQWielgJBXCA+2Ygkod+/34VXnQI2fxs6HOWum4rrIfp/MCctr9z9L4Wv6B9hSOe/SApjvb2+NN7TgdwcQKNVD/75P0YNvWAi8mw3WLuEUNnJKzn1ZQv1uqlQfXHk1XlN5KBBXs+DUcuji2drUTsrnivN2KHG8buQ2ltFelO4bB3lYb90TTTyUMAehyZwuxtPQWJWi22t7gBf/8Q5hkB/h34Uzk1GGGiTgpgZJ8TJEWkQbzOxfuriTVdRboldIa62qB1ZcXCA6Z07pPveDJ9t1R7gL6Ufx4=
+  on:
+    tags: true
+    repo: Ensembl/ols-client
+    condition: $TRAVIS_TAG =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?-test(\.[0-9]+)?$
+- provider: pypi
+  username: __token__
+  password:
+    secure: ZlY51rqgxuVXfciGhR9q44fSal/bRrmT6RjSlc46UuAkIQ2viS5XLrOyEJ0qZ/kPyjjkdvl8wbGklbAHrpyW9ryr8seRnuF/HnKHW+bqbh6kw5AWqaD+mORyeJdrEN8jT2QySHjjVD0u9GXdd6kKQWtsIEHqH9Edov3BNljpWdTKyo77eU85y5WHTesR6cd9NxJdrzWF2rmEa+DgOyYSqLoDHmAESnN3con1uA/ZoieTdrieray0bSWsK0QKIHJ05bX4HkORibZJ4sJA/iJJdhRMGvVJSSnp1V6hMevKuyCgXp/3wOAdb91g0RtFav0r0XoKU41PDptDbhToOXAcIN6T6XxNPyB6oIPuhq1G5I2y1d/iSplxVVmCTxaipc58IdCMEKDY2JIJm3FrRyV+tfYvPO0VhPAaq0Tsva3e302vxABHchekY6RO1oE2+0noc3LHsn82ERi7W241oHiuDUgxCqycIyAtRA17+4Yeuizjq2dr4ivHRPTHVfTgGs8wLjSm32IsmxCTpzXfYBgq7MSmTOGBkq2igXnb76JfNeAh2MexN6vJe7ya+OeZsMQifrIlU1v5DUtW3i5AI2Sz8vi7EwTeFqfgNQRAbWUmAExH1MNa4hzJUCPp+WtXQ+yu62uZVY8zzuC2xB99UBCi3noG47IQQhGrNOCf+aB/dJE=
+  on:
+    tags: true
+    repo: Ensembl/ols-client
+    condition: $TRAVIS_TAG =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$
