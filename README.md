@@ -52,11 +52,11 @@ individual = individuals[123]
 Contribute
 ----------
 
-Please do ! If you need to run tests locally, add to your virtual env requirements-dev.txt content.None
+Please do! If you need to run tests locally, add to your virtualenv requirements-test.txt
 
 ```bash
-    pip install -r requirements.txt
-    pip install -r requirements-dev.txt
+    pip install -e .
+    pip install -r requirements-test.txt
 
     # to run tests
     nosetests --withcoverage
