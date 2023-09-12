@@ -484,7 +484,7 @@ class OntologyTestBasic(unittest.TestCase):
                 BfoClientMixin.count_call = BfoClientMixin.count_call + 1
                 return super().fetch_document(path, params, filters, base_document)
 
-        terms_list_client = BfoClientMixin('/'.join(['https://www.ebi.ac.uk/ols/api', 'ontologies', 'pr']),
+        terms_list_client = BfoClientMixin('/'.join(['https://www.ebi.ac.uk/ols4/api', 'ontologies', 'pr']),
                                            helpers.Term,
                                            page_size=100)
         terms = terms_list_client()
