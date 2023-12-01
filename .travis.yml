@@ -3,14 +3,20 @@ python:
   - "3.6"
   - "3.7"
   - "3.8"
+env:
+  - DOCKER_COMPOSE_VERSION=v2.17.3
 services:
   - docker
 before_install:
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
   - git submodule sync
   - git submodule update --init --recursive --remote
   - cp ./tests/ols-config.json ./tests/ols-docker/ols4/dataload/configs/
   - export OLS4_CONFIG=./dataload/configs/ols-config.json
-  - COMPOSE_FILE=./tests/ols-docker/docker-compose.yml docker compose up -d
+  - docker-compose -f ./tests/ols-docker/docker-compose.yml up -d
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
