@@ -5,11 +5,7 @@ python:
 services:
   - docker
 before_install:
-  - git submodule sync
-  - git submodule update --init --recursive --remote
-  - docker build -t ols tests/ols-docker
-  - docker run -d -p 127.0.0.1:8080:8080 -t ols
-  - docker ps -a
+  - docker run -it --privileged ensemblorg/ensembl-ols-docker:latest -p 8080:8080
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
