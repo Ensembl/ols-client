@@ -16,7 +16,7 @@ before_install:
   - git submodule update --init --recursive --remote
   - cp ./tests/ols-config.json ./tests/ols-docker/ols4/dataload/configs/
   - export OLS4_CONFIG=./dataload/configs/ols-config.json
-  - docker-compose -f ./tests/ols-docker/docker-compose.yml --quiet-pull up -d
+  - docker-compose -f ./tests/ols-docker/docker-compose.yml up -d --quiet-pull
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
