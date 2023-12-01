@@ -5,7 +5,11 @@ python:
 services:
   - docker
 before_install:
-  - docker run --pull=always -it --privileged ensemblorg/ensembl-ols-docker:latest -p 8080:8080
+  - git submodule sync
+  - git submodule update --init --recursive --remote
+  - cp ./tests/ols-config.json ./tests/ols-docker/ols4/dataload/configs/
+  - export OLS4_CONFIG=./dataload/configs/ols-config.json
+  - docker compose -f ./tests/ols-docker/docker-compose.yml up -d
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
