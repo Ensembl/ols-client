@@ -1,0 +1,4 @@
+[submodule "tests/ensembl-ols4"]
+	path = tests/ensembl-ols4
+	url = https://github.com/Ensembl/ensembl-ols4
+	branch = stable
