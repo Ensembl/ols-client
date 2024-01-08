@@ -15,7 +15,7 @@ before_install:
   - chmod +x docker-compose
   - sudo mv docker-compose /usr/local/bin
   - export OLS4_CONFIG=./dataload/configs/ensembl-test-config.json
-  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d > /dev/null 2>&1
+  - output=$(docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up | tail -n 300) && if [ $? -ne 0 ]; then echo "Errors occurred:$output";  fi
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
