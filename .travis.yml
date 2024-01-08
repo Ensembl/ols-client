@@ -9,12 +9,8 @@ services:
 before_install:
   - git submodule sync
   - git submodule update --init --recursive --remote
-  - sudo rm /usr/local/bin/docker-compose
-  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
-  - chmod +x docker-compose
-  - sudo mv docker-compose /usr/local/bin
-  - export OLS4_CONFIG=./dataload/configs/ensembl-test-config.json
-  - output=$(docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d | tail -n 300) && if [ $? -ne 0 ]; then echo "Errors occurred:$output";  fi
+  - export OLS4_CONFIG=dataload/configs/ensembl-test-config.json
+  - docker compose version
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
