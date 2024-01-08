@@ -4,13 +4,15 @@ python:
   - "3.8"
 env:
   - DOCKER_COMPOSE_VERSION=v2.17.3
-services:
-  - docker
 before_install:
   - git submodule sync
   - git submodule update --init --recursive --remote
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
   - export OLS4_CONFIG=dataload/configs/ensembl-test-config.json
-  - docker compose version
+  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d 2>&1
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
