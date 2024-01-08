@@ -3,7 +3,7 @@ python:
 #  - "3.7"
   - "3.8"
 env:
-  - DOCKER_COMPOSE_VERSION=v2.17.3
+  - DOCKER_COMPOSE_VERSION=v2.23.3
 before_install:
   - git submodule sync
   - git submodule update --init --recursive --remote
@@ -12,8 +12,7 @@ before_install:
   - chmod +x docker-compose
   - sudo mv docker-compose /usr/local/bin
   - export OLS4_CONFIG=dataload/configs/ensembl-test-config.json
-  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml pull --quiet
-  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d
+  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d --quiet-pull
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
