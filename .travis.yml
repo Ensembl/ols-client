@@ -1,22 +1,20 @@
 language: python
 python:
-#  - "3.7"
   - "3.8"
-env:
-  - DOCKER_COMPOSE_VERSION=v2.23.3
+services:
+  - docker
 before_install:
-  - git submodule sync
-  - git submodule update --init --recursive --remote
-  - sudo rm /usr/local/bin/docker-compose
-  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
-  - chmod +x docker-compose
-  - sudo mv docker-compose /usr/local/bin
-  - export OLS4_CONFIG=dataload/configs/ensembl-test-config.json
-  - docker-compose -f ./tests/ensembl-ols4/docker-compose.yml up -d --quiet-pull
+  - docker run -it -d -v /var/run/docker.sock:/var/run/docker.sock ensemblorg/ensembl-ols-docker:latest
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
 script:
+  - |
+    # Wait for the ols4-backend to be up
+    until [ "$(curl -s -o /dev/null -w ''%{http_code}'' http://localhost:8080/api)" -eq "200" ]; do
+      echo 'Waiting for the service to be available...'
+      sleep 10
+    done
   - nosetests tests.test_basic --verbose --with-coverage --cover-package=ebi.ols
 after_success:
   - coveralls
