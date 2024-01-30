@@ -173,7 +173,8 @@ class OntologyConfig(OLSHelper):
     skos = None
 
     def __init__(self, **kwargs):
-        annotations = OntologyAnnotation(**kwargs.pop("annotations", {}))
+        kwargs.pop("annotations", {})
+        annotations = OntologyAnnotation(**kwargs)
         super().__init__(annotations=annotations, **kwargs)
 
     def __repr__(self):
