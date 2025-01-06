@@ -1,4 +1,0 @@
-[submodule "tests/ols-docker"]
-	path = tests/ols-docker
-	url = https://github.com/Ensembl/OLS-docker.git
-	branch = master

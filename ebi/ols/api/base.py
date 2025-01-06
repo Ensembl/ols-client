@@ -549,6 +549,7 @@ class SearchClientMixin(ListClientMixin):
         return self._get_pages()
 
     def _get_data(self, path, document):
+        logger.debug(f"Getting data {path} {document}")
         return document.data[path]['docs']
 
     @property
