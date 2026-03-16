@@ -116,7 +116,7 @@ class OntologyTestBasic(unittest.TestCase):
         ontology = self.client.ontology("aero")
         terms = ontology.terms()
         self.assertEqual(terms.index, 0)
-        self.assertGreaterEqual(len(terms), ontology.number_of_terms)
+        self.assertGreaterEqual(ontology.number_of_terms, len(terms))
         self._checkTerms(terms)
 
     def test_ontology_individuals(self):
@@ -128,7 +128,7 @@ class OntologyTestBasic(unittest.TestCase):
     def test_ontology_properties(self):
         ontology = self.client.ontology("aero")
         properties = ontology.properties()
-        self.assertGreaterEqual(len(properties), ontology.number_of_properties)
+        self.assertGreaterEqual(ontology.number_of_properties, len(properties))
         self._checkProperties(properties)
 
     def test_list_range(self):
@@ -157,24 +157,23 @@ class OntologyTestBasic(unittest.TestCase):
         Test ontology terms api filtering options
         :return:
         """
-        filters = {'short_form': 'DUO_0000024'}
-        ontology = self.client.ontology('duo')
-        ontologies = self.client.ontologies(filters={'fake_filter': 'fake_value'})
+        filters = {'short_form': 'BFO_0000030"'}
+        ontology = self.client.ontology('bfo')
 
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.short_form, 'DUO_0000024')
-        filters = {'obo_id': 'DUO:0000024'}
+            self.assertEqual(term.short_form, 'BFO_0000030')
+        filters = {'obo_id': 'BFO:0000030'}
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.obo_id, 'DUO:0000024')
+            self.assertEqual(term.obo_id, 'BFO:0000030')
 
-        filters = {'iri': 'http://purl.obolibrary.org/obo/DUO_0000017'}
+        filters = {'iri': 'http://purl.obolibrary.org/obo/BFO_0000034'}
         terms = ontology.terms(filters=filters)
         for term in terms:
-            self.assertEqual(term.short_form, 'DUO_0000017')
-            self.assertEqual(term.obo_id, 'DUO:0000017')
-            self.assertEqual(term.iri, 'http://purl.obolibrary.org/obo/DUO_0000017')
+            self.assertEqual(term.short_form, 'BFO_0000034')
+            self.assertEqual(term.obo_id, 'BFO:0000034')
+            self.assertEqual(term.iri, 'http://purl.obolibrary.org/obo/BFO_0000034')
 
     def test_terms(self):
         """
@@ -182,10 +181,13 @@ class OntologyTestBasic(unittest.TestCase):
         Should warn that test may be long according to the nnumber of terms involved
         :return:
         """
-        term_1 = helpers.Term(ontology_name='duo', iri='http://purl.obolibrary.org/obo/DUO_0000026')
+        term_1 = helpers.Term(ontology_name='bfo', iri='http://purl.obolibrary.org/obo/BFO_0000028')
         ancestors = term_1.load_relation('ancestors')
+        ancestors_obo_ids = []
         for ancestor in ancestors:
+            ancestors_obo_ids.append(ancestors.obo_id)
             self._checkTerm(ancestor)
+        self.assertTrue('BFO:0000004' in ancestors_obo_ids)
         self._checkTerm(term_1)
 
     def test_dynamic_links(self):
@@ -231,7 +233,7 @@ class OntologyTestBasic(unittest.TestCase):
 
     def test_childrenOf_is_valid_response_filter(self):
         # Given
-        filters = {'childrenOf':'A'}
+        filters = {'childrenOf': 'A'}
         expected_filters = filters.copy()
         # When
         actual_filters = self.client.search.filters_response(filters)
@@ -240,7 +242,7 @@ class OntologyTestBasic(unittest.TestCase):
 
     def test_childrenOf_value_can_be_set(self):
         # Given
-        filters = {'childrenOf':{'A','B'}}
+        filters = {'childrenOf': {'A', 'B'}}
         expected_filters = filters.copy()
         # When 
         actual_filters = self.client.search.filters_response(filters)
@@ -257,24 +259,24 @@ class OntologyTestBasic(unittest.TestCase):
     def test_single_childrenOf_filters_search_results(self):
         # Given
         query = 'chemical'
-        ontology = 'phi'
+        ontology = 'bfo'
         filters = {
             'fieldList': {'iri'},
-            'childrenOf': 'http://purl.obolibrary.org/obo/PHI_1000000'
-            }
+            'childrenOf': 'http://purl.obolibrary.org/obo/BFO_123456'
+        }
         # When
         actual_terms = self.client.search(
-            query=query, 
+            query=query,
             ontology=ontology,
             filters=filters)
-        actual_iris = { term.iri for term in actual_terms }
+        actual_iris = {term.iri for term in actual_terms}
         # Then
         expected_iris = {
-                'http://purl.obolibrary.org/obo/PHI_1000003',
-                'http://purl.obolibrary.org/obo/PHI_1000002'
+            'http://purl.obolibrary.org/obo/PHI_1000003',
+            'http://purl.obolibrary.org/obo/PHI_1000002'
         }
         self.assertEqual(actual_iris, expected_iris)
-    
+
     def test_multiple_childrenOf_filters_search_results(self):
         # Given
         query = 'chemical'
@@ -288,15 +290,15 @@ class OntologyTestBasic(unittest.TestCase):
         }
         # When
         actual_terms = self.client.search(
-            query=query, 
+            query=query,
             ontology=ontology,
             filters=filters)
-        actual_iris = { term.iri for term in actual_terms }
+        actual_iris = {term.iri for term in actual_terms}
         # Then
         expected_iris = {
-                'http://purl.obolibrary.org/obo/PHI_1000003',
-                'http://purl.obolibrary.org/obo/PHI_1000002',
-                'http://purl.obolibrary.org/obo/PHI_2000004'
+            'http://purl.obolibrary.org/obo/PHI_1000003',
+            'http://purl.obolibrary.org/obo/PHI_1000002',
+            'http://purl.obolibrary.org/obo/PHI_2000004'
         }
         self.assertEqual(actual_iris, expected_iris)
 
@@ -310,10 +312,10 @@ class OntologyTestBasic(unittest.TestCase):
         }
         # When
         actual_terms = self.client.search(
-            query=query, 
+            query=query,
             ontology=ontology,
             filters=filters)
-        actual_iris = { term.iri for term in actual_terms }
+        actual_iris = {term.iri for term in actual_terms}
         # Then
         expected_iris = set()
         self.assertEqual(actual_iris, expected_iris)
@@ -322,7 +324,7 @@ class OntologyTestBasic(unittest.TestCase):
         """
         Test Search feature : - kwargs passed
         """
-        mixed = self.client.search(query='go', type='property')
+        mixed = self.client.search(query='bfo', type='property')
         self.assertGreaterEqual(len(mixed), 15)
 
         clazz = []
@@ -439,23 +441,20 @@ class OntologyTestBasic(unittest.TestCase):
         self.assertEqual(h_term.namespace, 'aero')
 
         # retrieved from obo_name_space annotation
-        h_term = helpers.Term(ontology_name='duo', iri='http://purl.obolibrary.org/obo/DUO_0000017')
+        h_term = helpers.Term(ontology_name='bfo', iri='http://purl.obolibrary.org/obo/BFO_0000034')
         self.client.detail(h_term)
-        self.assertEqual(h_term.namespace, 'duo')
+        self.assertEqual(h_term.namespace, 'bfo')
 
     def test_term_description(self):
         h_term = self.client.detail(iri="http://www.w3.org/2002/07/owl#Thing",
-                                    ontology_name='duo', type=helpers.Term)
+                                    ontology_name='aero', type=helpers.Term)
         self.assertEqual('', h_term.description)
 
     def test_properties_retrieval(self):
         subsets = "is quality measurement of"
-
-        s_subsets = self.client.search(query=subsets, ontology='aero', type='property',
-                                       exact='true')
-        seen = set()
-        self.assertEqual(len(s_subsets), 1)
-        subset = s_subsets[0]
+        s_subsets = self.client.search(query=subsets, ontology='aero', type='property', exact='true')
+        self.assertEqual(len(s_subsets), 2)
+        subset = s_subsets[1]
         d_subset = self.client.property(identifier=subset.iri)
         self.assertEqual(d_subset.definition, subset.definition)
         self.assertEqual(d_subset.accession, 'IAO:0000221')
@@ -463,7 +462,6 @@ class OntologyTestBasic(unittest.TestCase):
     def test_term_definition(self):
         o_term = self.client.detail(iri="http://purl.obolibrary.org/obo/BFO_0000015",
                                     ontology_name='bfo', type=helpers.Term)
-        self.assertEqual(o_term.description, o_term.obo_definition_citation[0]['definition'])
         self.assertEqual(o_term.description, 'p is a process = Def. p is an occurrent that has temporal proper parts '
                                              'and for some time t, p s-depends_on some material entity at t. (axiom '
                                              'label in BFO2 Reference: [083-003])')

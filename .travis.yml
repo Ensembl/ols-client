@@ -1,22 +1,25 @@
 language: python
 python:
-  - "3.6"
-  - "3.7"
+  - "3.8"
 services:
   - docker
 before_install:
-  - git submodule sync
-  - git submodule update --init --recursive --remote
-  - docker build -t ols tests/ols-docker
-  - docker run -d -p 127.0.0.1:8080:8080 -t ols
-  - docker ps -a
+  - docker run -it -d -v /var/run/docker.sock:/var/run/docker.sock ensemblorg/ensembl-ols-docker:latest
 install:
   - pip install -e .
   - pip install -r requirements-test.txt
 script:
+  - |
+    # Wait for the ols4-backend to be up
+    until [ "$(curl -s -o /dev/null -w ''%{http_code}'' http://localhost:8080/api)" -eq "200" ]; do
+      echo 'Waiting for the service to be available...'
+      sleep 30
+    done
   - nosetests tests.test_basic --verbose --with-coverage --cover-package=ebi.ols
 after_success:
   - coveralls
+after_script:
+  - docker stop $(docker ps -q)
 notifications:
   email:
     on_success: change
